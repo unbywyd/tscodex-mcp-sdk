@@ -47,6 +47,38 @@ import type { HealthResponse, UpdateProjectRootRequest, UpdateProjectRootRespons
 import { TransportManager, type CorsOptions } from './transport.js';
 import { RateLimiter, validateRequestSize, filterMcpPublicConfig, type RateLimitConfig } from './security.js';
 import type { ServerHttpOptions, ServerSecurityOptions, ServerHandlerOptions } from './types.js';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+
+/**
+ * Parse CLI arguments for server settings using yargs
+ * Returns parsed arguments (host, port, mcpPath, projectRoot)
+ */
+function parseServerCliArgs(): { host?: string; port?: string | number; mcpPath?: string; projectRoot?: string } {
+  try {
+    const parsed = yargs(hideBin(process.argv))
+      .parserConfiguration({
+        'parse-positional-numbers': false,
+        'strip-aliased': false,
+        'strip-dashed': false,
+        'unknown-options-as-args': true
+      })
+      .help(false)
+      .version(false)
+      .strict(false)
+      .parseSync();
+
+    return {
+      host: parsed.host as string | undefined,
+      port: parsed.port as string | number | undefined,
+      mcpPath: parsed.mcpPath as string | undefined,
+      projectRoot: parsed.projectRoot as string | undefined,
+    };
+  } catch (error) {
+    // If yargs fails, return empty object
+    return {};
+  }
+}
 
 interface ToolDefinition<
   TSchemaType extends TSchema,
@@ -96,7 +128,7 @@ export class McpServer<
   private secrets: Map<string, string> = new Map();
   private projectRoot?: string;
   private session?: TSession;
-  
+
   private tools = new Map<string, ToolDefinition<any, TConfig, TSession>>();
   private resources = new Map<string, ResourceDefinition<TConfig, TSession>>();
   private prompts = new Map<string, PromptDefinition<any, TConfig, TSession>>();
@@ -141,13 +173,24 @@ export class McpServer<
     // Generate or validate resource prefix (ID)
     this.resourcePrefix = this.generateResourcePrefix(options.name, options.id);
 
-    // Read parameters from Extension via environment variables
-    this.port = parseInt(process.env.MCP_PORT || '3848', 10);
-    this.host = process.env.MCP_HOST || '0.0.0.0';
-    this.projectRoot = process.env.MCP_PROJECT_ROOT || process.env.CURSOR_WORKSPACE || undefined;
-    
+    // Parse CLI arguments for server settings
+    const cliArgs = parseServerCliArgs();
+
+    // Read parameters with priority: MCP_* env vars -> env vars without prefix -> CLI args -> defaults
+    // Priority: process.env.MCP_HOST -> process.env.HOST -> CLI --host -> default
+    this.host = process.env.MCP_HOST || process.env.HOST || cliArgs.host || '0.0.0.0';
+
+    // Priority: process.env.MCP_PORT -> process.env.PORT -> CLI --port -> default
+    const portValue = process.env.MCP_PORT || process.env.PORT || cliArgs.port || '3848';
+    this.port = parseInt(String(portValue), 10);
+
+    // Priority: process.env.MCP_PROJECT_ROOT -> process.env.CURSOR_WORKSPACE -> process.env.PROJECT_ROOT -> CLI --project-root -> undefined
+    this.projectRoot = process.env.MCP_PROJECT_ROOT || process.env.CURSOR_WORKSPACE || process.env.PROJECT_ROOT || cliArgs.projectRoot || undefined;
+
     // Server settings
-    this.mcpPath = process.env.MCP_PATH || options.mcpPath || '/mcp';
+    // Priority: process.env.MCP_PATH -> process.env.PATH (but skip system PATH) -> CLI --mcp-path -> options.mcpPath -> default
+    // Note: We skip process.env.PATH for mcpPath as it's usually a system variable
+    this.mcpPath = process.env.MCP_PATH || cliArgs.mcpPath || options.mcpPath || '/mcp';
     // CORS defaults to permissive (*) if not specified
     this.corsOptions = options.corsOptions ?? undefined;
     // SDK manages logger: disable in meta mode for clean JSON output
@@ -209,7 +252,7 @@ export class McpServer<
     // Create HTTP Server with options
     this.httpServer = createServer();
     this.applyHttpOptions();
-    
+
     // Create Transport Manager
     this.transportManager = new TransportManager(this.mcpPath, this.logger);
 
@@ -303,7 +346,7 @@ export class McpServer<
 
     try {
       const token = process.env.MCP_AUTH_TOKEN;
-      
+
       if (!token) {
         if (this.options.auth.requireSession !== false) {
           throw new Error('Session is required but MCP_AUTH_TOKEN environment variable is not set');
@@ -321,7 +364,7 @@ export class McpServer<
         config: this.config,
         projectRoot: this.projectRoot
       });
-      
+
       // Validate session via sessionSchema
       this.session = validateConfig<TSession>(
         sessionData,
@@ -398,9 +441,9 @@ export class McpServer<
             return await guard(this.session!, guardContext);
           })
         );
-        
+
         const hasAccess = accessChecks.some(result => result === true);
-        
+
         if (!hasAccess) {
           this.tools.delete(name);
           if (this.logger) {
@@ -425,9 +468,9 @@ export class McpServer<
             return await guard(this.session!, guardContext);
           })
         );
-        
+
         const hasAccess = accessChecks.some(result => result === true);
-        
+
         if (!hasAccess) {
           this.resources.delete(uri);
           if (this.logger) {
@@ -452,9 +495,9 @@ export class McpServer<
             return await guard(this.session!, guardContext);
           })
         );
-        
+
         const hasAccess = accessChecks.some(result => result === true);
-        
+
         if (!hasAccess) {
           this.prompts.delete(name);
           if (this.logger) {
@@ -476,7 +519,7 @@ export class McpServer<
    */
   private extractSecretsFromEnv(): void {
     this.secrets.clear();
-    
+
     // Extract all SECRET_* variables from process.env
     const secretKeys: string[] = [];
     for (const [envKey, value] of Object.entries(process.env)) {
@@ -485,13 +528,13 @@ export class McpServer<
         secretKeys.push(envKey);
       }
     }
-    
+
     // Remove secrets from process.env to prevent them from being included in config
     // This ensures secrets don't leak into public configuration
     for (const key of secretKeys) {
       delete process.env[key];
     }
-    
+
     if (this.logger && this.secrets.size > 0) {
       this.logger.debug(`Extracted ${this.secrets.size} secrets from ENV:`, Array.from(this.secrets.keys()));
     }
@@ -507,8 +550,8 @@ export class McpServer<
       this.extractSecretsFromEnv();
 
       // 1. Read configuration from Extension
-      const extensionConfig = process.env.MCP_CONFIG 
-        ? JSON.parse(process.env.MCP_CONFIG) 
+      const extensionConfig = process.env.MCP_CONFIG
+        ? JSON.parse(process.env.MCP_CONFIG)
         : {};
 
       if (this.logger) {
@@ -517,7 +560,7 @@ export class McpServer<
 
       // 2. Parse local config from CLI, ENV, and file (if configSchema or configFile provided)
       let localConfig: Partial<TConfig> = {};
-      
+
       if (this.options.configSchema || this.options.configFile) {
         // Use SDK's built-in config loader
         const { loadConfig } = await import('./config-loader.js');
@@ -526,12 +569,12 @@ export class McpServer<
           configFile: this.options.configFile
         });
         localConfig = parsedConfig as Partial<TConfig>;
-        
+
         if (this.logger) {
           this.logger.debug('Parsed config from CLI/ENV/file:', Object.keys(localConfig));
         }
       }
-      
+
       // 3. Call loadConfig callback if provided (for custom processing)
       if (this.options.loadConfig) {
         localConfig = await this.options.loadConfig(localConfig);
@@ -595,7 +638,7 @@ export class McpServer<
           try {
             validateRequestSize(req.headers['content-length'], this.securityOptions.maxRequestBodySize);
           } catch (error) {
-            sendJsonResponse(res, 413, { 
+            sendJsonResponse(res, 413, {
               error: 'Request Entity Too Large',
               message: error instanceof Error ? error.message : String(error)
             }, this.corsOptions);
@@ -767,7 +810,7 @@ export class McpServer<
   private async handleUpdateConfig(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
       const body = await parseRequestBody<{ config: Partial<TConfig> }>(req);
-      
+
       if (!body || !body.config) {
         sendJsonResponse(res, 400, {
           error: 'Invalid request',
@@ -817,7 +860,7 @@ export class McpServer<
    */
   updateConfig(newConfig: Partial<TConfig>): TConfig {
     const previousConfig = { ...this.config };
-    
+
     // Deep merge
     this.config = updateConfig(this.config, newConfig) as TConfig;
 
@@ -893,14 +936,14 @@ export class McpServer<
     }
 
     // Default error handling if no custom handler
-    const errorMessage = error instanceof Error 
-      ? error.message 
+    const errorMessage = error instanceof Error
+      ? error.message
       : String(error);
-    
-    const typeName = errorContext.type === 'tool' ? 'tool' 
+
+    const typeName = errorContext.type === 'tool' ? 'tool'
       : errorContext.type === 'resource' ? 'resource'
-      : 'prompt';
-    
+        : 'prompt';
+
     return new Error(
       `An error occurred while executing ${typeName} "${errorContext.name}": ${errorMessage}`
     );
@@ -926,7 +969,7 @@ export class McpServer<
     this.mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
       const toolDef = this.tools.get(name);
-      
+
       if (!toolDef) {
         throw new Error(`Unknown tool: ${name}`);
       }
@@ -962,7 +1005,7 @@ export class McpServer<
           this.logger.error(`Tool ${name} failed:`, error);
         }
         this.emit('toolError', name, validatedParams, error);
-        
+
         // Process error through middleware
         const processedError = this.handleError(error, {
           type: 'tool',
@@ -990,7 +1033,7 @@ export class McpServer<
     this.mcpServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const { uri } = request.params;
       const resourceDef = this.resources.get(uri);
-      
+
       if (!resourceDef) {
         throw new Error(`Unknown resource: ${uri}`);
       }
@@ -1017,7 +1060,7 @@ export class McpServer<
           this.logger.error(`Resource ${uri} failed:`, error);
         }
         this.emit('resourceError', uri, error);
-        
+
         // Process error through middleware
         const processedError = this.handleError(error, {
           type: 'resource',
@@ -1036,7 +1079,7 @@ export class McpServer<
           name,
           description: def.description,
           // Convert TypeBox schema to JSON Schema for MCP protocol
-          arguments: def.arguments 
+          arguments: def.arguments
             ? this.typeboxToJsonSchema(def.arguments)
             : undefined
         }))
@@ -1047,7 +1090,7 @@ export class McpServer<
     this.mcpServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
       const promptDef = this.prompts.get(name);
-      
+
       if (!promptDef) {
         throw new Error(`Unknown prompt: ${name}`);
       }
@@ -1085,7 +1128,7 @@ export class McpServer<
           this.logger.error(`Prompt ${name} failed:`, error);
         }
         this.emit('promptError', name, validatedParams, error);
-        
+
         // Process error through middleware
         const processedError = this.handleError(error, {
           type: 'prompt',
@@ -1109,7 +1152,7 @@ export class McpServer<
    */
   private registerDefaultContextResource(): void {
     const contextUri = `${this.resourcePrefix}://context`;
-    
+
     // Check if user already registered a context resource
     if (this.resources.has(contextUri)) {
       if (this.logger) {
@@ -1122,7 +1165,7 @@ export class McpServer<
     this.resources.set(contextUri, {
       handler: async (uri, context) => {
         const uptime = (Date.now() - this.startTime) / 1000;
-        
+
         // Include public configuration (secrets are stored separately and not included)
         // All config is public - secrets are accessed via context.secrets
         const contextData = {
@@ -1173,7 +1216,7 @@ export class McpServer<
    */
   private registerDefaultConfigTool(): void {
     const toolName = 'update_config';
-    
+
     // Check if user already registered an update_config tool
     if (this.tools.has(toolName)) {
       if (this.logger) {
@@ -1184,7 +1227,7 @@ export class McpServer<
 
     // Use configSchema if available, otherwise use generic schema
     let UpdateConfigSchema: TSchema;
-    
+
     if (this.options.configSchema) {
       // Use the actual config schema - Value.Cast will handle partial updates correctly
       // Wrap in Type.Object with 'config' key
@@ -1204,10 +1247,10 @@ export class McpServer<
     this.tools.set(toolName, {
       handler: async (params, context) => {
         const { config: newConfig } = params as { config: Partial<TConfig> };
-        
+
         // Update config using the public method
         const updatedConfig = this.updateConfig(newConfig);
-        
+
         if (this.logger) {
           this.logger.info('Configuration updated via MCP tool');
         }
@@ -1282,7 +1325,7 @@ export class McpServer<
     if (!name || typeof name !== 'string') {
       throw new Error(`${type} name is required and must be a string`);
     }
-    
+
     // Slug format: lowercase letters, numbers, hyphens, underscores
     if (!/^[a-z0-9-_]+$/.test(name)) {
       throw new Error(
@@ -1398,7 +1441,7 @@ export class McpServer<
 
     // Normalize URI: add prefix if not already present
     let normalizedUri = config.uri;
-    
+
     // Check if URI already has a scheme (contains ://)
     if (!normalizedUri.includes('://')) {
       // No scheme, add server prefix
@@ -1589,7 +1632,7 @@ export class McpServer<
       if (this.logger) {
         this.logger.info(`Received ${signal}, shutting down gracefully...`);
       }
-      
+
       try {
         await this.stop();
         process.exit(0);
@@ -1692,7 +1735,7 @@ export class McpServer<
    * Format validation errors into a readable string
    */
   private formatValidationErrors(errors: any[]): string {
-    return errors.map(err => 
+    return errors.map(err =>
       `${err.path || 'root'}: ${err.message || 'Invalid value'}`
     ).join('; ');
   }
@@ -1789,13 +1832,13 @@ export class McpServer<
       prompts: Array.from(this.prompts.entries()).map(([name, def]) => ({
         name,
         description: def.description,
-        arguments: def.arguments 
+        arguments: def.arguments
           ? this.typeboxToJsonSchema(def.arguments)
           : undefined,
         access: def.access
       })),
       config: {
-        schema: this.options.configSchema 
+        schema: this.options.configSchema
           ? this.typeboxToJsonSchema(this.options.configSchema)
           : undefined,
         loaded: this.isInitialized,

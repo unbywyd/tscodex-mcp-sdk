@@ -19,6 +19,37 @@ import { validateConfig, updateConfig } from './config.js';
 import { parseRequestBody, sendJsonResponse } from './transport.js';
 import { TransportManager } from './transport.js';
 import { RateLimiter, validateRequestSize } from './security.js';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+/**
+ * Parse CLI arguments for server settings using yargs
+ * Returns parsed arguments (host, port, mcpPath, projectRoot)
+ */
+function parseServerCliArgs() {
+    try {
+        const parsed = yargs(hideBin(process.argv))
+            .parserConfiguration({
+            'parse-positional-numbers': false,
+            'strip-aliased': false,
+            'strip-dashed': false,
+            'unknown-options-as-args': true
+        })
+            .help(false)
+            .version(false)
+            .strict(false)
+            .parseSync();
+        return {
+            host: parsed.host,
+            port: parsed.port,
+            mcpPath: parsed.mcpPath,
+            projectRoot: parsed.projectRoot,
+        };
+    }
+    catch (error) {
+        // If yargs fails, return empty object
+        return {};
+    }
+}
 /**
  * Main MCP Server class
  */
@@ -70,12 +101,20 @@ export class McpServer extends EventEmitter {
         }
         // Generate or validate resource prefix (ID)
         this.resourcePrefix = this.generateResourcePrefix(options.name, options.id);
-        // Read parameters from Extension via environment variables
-        this.port = parseInt(process.env.MCP_PORT || '3848', 10);
-        this.host = process.env.MCP_HOST || '0.0.0.0';
-        this.projectRoot = process.env.MCP_PROJECT_ROOT || process.env.CURSOR_WORKSPACE || undefined;
+        // Parse CLI arguments for server settings
+        const cliArgs = parseServerCliArgs();
+        // Read parameters with priority: MCP_* env vars -> env vars without prefix -> CLI args -> defaults
+        // Priority: process.env.MCP_HOST -> process.env.HOST -> CLI --host -> default
+        this.host = process.env.MCP_HOST || process.env.HOST || cliArgs.host || '0.0.0.0';
+        // Priority: process.env.MCP_PORT -> process.env.PORT -> CLI --port -> default
+        const portValue = process.env.MCP_PORT || process.env.PORT || cliArgs.port || '3848';
+        this.port = parseInt(String(portValue), 10);
+        // Priority: process.env.MCP_PROJECT_ROOT -> process.env.CURSOR_WORKSPACE -> process.env.PROJECT_ROOT -> CLI --project-root -> undefined
+        this.projectRoot = process.env.MCP_PROJECT_ROOT || process.env.CURSOR_WORKSPACE || process.env.PROJECT_ROOT || cliArgs.projectRoot || undefined;
         // Server settings
-        this.mcpPath = process.env.MCP_PATH || options.mcpPath || '/mcp';
+        // Priority: process.env.MCP_PATH -> process.env.PATH (but skip system PATH) -> CLI --mcp-path -> options.mcpPath -> default
+        // Note: We skip process.env.PATH for mcpPath as it's usually a system variable
+        this.mcpPath = process.env.MCP_PATH || cliArgs.mcpPath || options.mcpPath || '/mcp';
         // CORS defaults to permissive (*) if not specified
         this.corsOptions = options.corsOptions ?? undefined;
         // SDK manages logger: disable in meta mode for clean JSON output
