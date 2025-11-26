@@ -56,6 +56,8 @@ export class McpServer extends EventEmitter {
     constructor(options) {
         super();
         this.options = options;
+        // Check for --meta flag - disable logging for clean JSON output
+        const isMetaMode = process.argv.includes('--meta') || process.argv.includes('--metadata');
         // Validate required fields
         if (!options.name || typeof options.name !== 'string') {
             throw new Error('McpServer: "name" is required and must be a string');
@@ -76,7 +78,8 @@ export class McpServer extends EventEmitter {
         this.mcpPath = process.env.MCP_PATH || options.mcpPath || '/mcp';
         // CORS defaults to permissive (*) if not specified
         this.corsOptions = options.corsOptions ?? undefined;
-        this.logger = options.logger;
+        // Disable logger in meta mode for clean JSON output
+        this.logger = isMetaMode ? undefined : options.logger;
         this.errorHandler = options.errorHandler;
         this.startTime = Date.now();
         // HTTP options with defaults
@@ -1233,6 +1236,17 @@ export class McpServer extends EventEmitter {
      * Start the server
      */
     async start() {
+        // Check for --meta flag BEFORE starting server
+        // This allows Extension to get metadata without starting HTTP server
+        if (process.argv.includes('--meta') || process.argv.includes('--metadata')) {
+            if (!this.isInitialized) {
+                await this.initialize();
+            }
+            const metadata = this.getMetadata();
+            // Output only JSON, no logs
+            console.log(JSON.stringify(metadata, null, 2));
+            process.exit(0);
+        }
         if (!this.isInitialized) {
             throw new Error('Server must be initialized before starting. Call initialize() first.');
         }
