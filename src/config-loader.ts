@@ -9,8 +9,7 @@ import { readFile } from 'fs/promises';
 import { resolve, join } from 'path';
 import { type TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
+import { parseCliArgs as parseCliArgsBase } from './cli-parser.js';
 
 export interface ConfigLoaderOptions {
   /** TypeBox schema for configuration (used for transformation/filtering) */
@@ -24,48 +23,16 @@ export interface ConfigLoaderOptions {
  * Supports --key value, --key=value, and boolean flags
  */
 function parseCliArgs(): Record<string, unknown> {
-  try {
-    // Parse with yargs - allows unknown options and doesn't exit
-    const parsed = yargs(hideBin(process.argv))
-      .parserConfiguration({
-        'parse-positional-numbers': false,
-        'strip-aliased': false,
-        'strip-dashed': false,
-        'unknown-options-as-args': true
-      })
-      .help(false)
-      .version(false)
-      .strict(false)
-      .parseSync();
-    
-    // Extract config file path if present (remove from result)
-    const { config: _config, configFile: _configFile, ...rest } = parsed as Record<string, unknown>;
-    
-    // Convert yargs result to config object
-    // yargs already handles camelCase conversion for --kebab-case
-    const config: Record<string, unknown> = {};
-    
-    for (const [key, value] of Object.entries(rest)) {
-      // Skip yargs internal properties
-      if (key.startsWith('$0') || key === '_') continue;
-      
-      // Normalize key (yargs may have already done some conversion)
-      const normalizedKey = normalizeKey(key);
-      config[normalizedKey] = value;
-    }
-    
-    return config;
-  } catch (error) {
-    // If yargs fails, fall back to empty config
-    return {};
-  }
-}
-
-/**
- * Normalize key from CLI (kebab-case to camelCase)
- */
-function normalizeKey(key: string): string {
-  return key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  // Parse with minimist - парсит ВСЕ опции в объект автоматически
+  // minimist уже конвертирует kebab-case в camelCase через parseCliArgsBase()
+  // TypeBox схема в loadConfig() отфильтрует неизвестные опции через Value.Cast
+  const parsed = parseCliArgsBase();
+  
+  // Extract config file path if present (remove from result)
+  const { config: _config, configFile: _configFile, ...rest } = parsed;
+  
+  // parseCliArgsBase() уже возвращает camelCase ключи, просто возвращаем rest
+  return rest;
 }
 
 /**
@@ -177,23 +144,9 @@ function extractSchemaKeys(schema: TSchema): Set<string> {
  * Get config file path from CLI arguments using yargs
  */
 function getConfigFileFromArgs(): string | undefined {
-  try {
-    const parsed = yargs(hideBin(process.argv))
-      .option('config', {
-        alias: 'config-file',
-        type: 'string',
-        describe: 'Path to config file'
-      })
-      .help(false)
-      .version(false)
-      .strict(false)
-      .parseSync();
-    
-    const configPath = (parsed as Record<string, unknown>).config as string | undefined;
-    return configPath ? resolve(configPath) : undefined;
-  } catch {
-    return undefined;
-  }
+  const parsed = parseCliArgsBase();
+  const configPath = parsed.config as string | undefined || parsed.configFile as string | undefined;
+  return configPath ? resolve(configPath) : undefined;
 }
 
 /**

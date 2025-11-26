@@ -19,38 +19,7 @@ import { validateConfig, updateConfig } from './config.js';
 import { parseRequestBody, sendJsonResponse } from './transport.js';
 import { TransportManager } from './transport.js';
 import { RateLimiter, validateRequestSize } from './security.js';
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
-/**
- * Parse CLI arguments for server settings using yargs
- * Returns parsed arguments (host, port, mcpPath, projectRoot)
- */
-function parseServerCliArgs() {
-    try {
-        const parsed = yargs(hideBin(process.argv))
-            .parserConfiguration({
-            'parse-positional-numbers': false,
-            'strip-aliased': false,
-            'strip-dashed': false,
-            'unknown-options-as-args': true
-        })
-            .help(false)
-            .version(false)
-            .strict(false)
-            .parseSync();
-        console.log('parsed', parsed);
-        return {
-            host: parsed.host,
-            port: parsed.port,
-            mcpPath: parsed.mcpPath,
-            projectRoot: parsed.projectRoot,
-        };
-    }
-    catch (error) {
-        // If yargs fails, return empty object
-        return {};
-    }
-}
+import { parseServerCliArgs } from './cli-parser.js';
 /**
  * Main MCP Server class
  */

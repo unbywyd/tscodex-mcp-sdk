@@ -47,38 +47,7 @@ import type { HealthResponse, UpdateProjectRootRequest, UpdateProjectRootRespons
 import { TransportManager, type CorsOptions } from './transport.js';
 import { RateLimiter, validateRequestSize, filterMcpPublicConfig, type RateLimitConfig } from './security.js';
 import type { ServerHttpOptions, ServerSecurityOptions, ServerHandlerOptions } from './types.js';
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
-
-/**
- * Parse CLI arguments for server settings using yargs
- * Returns parsed arguments (host, port, mcpPath, projectRoot)
- */
-function parseServerCliArgs(): { host?: string; port?: string | number; mcpPath?: string; projectRoot?: string } {
-  try {
-    const parsed = yargs(hideBin(process.argv))
-      .parserConfiguration({
-        'parse-positional-numbers': false,
-        'strip-aliased': false,
-        'strip-dashed': false,
-        'unknown-options-as-args': true
-      })
-      .help(false)
-      .version(false)
-      .strict(false)
-      .parseSync();
-    console.log('parsed', parsed);
-    return {
-      host: parsed.host as string | undefined,
-      port: parsed.port as string | number | undefined,
-      mcpPath: parsed.mcpPath as string | undefined,
-      projectRoot: parsed.projectRoot as string | undefined,
-    };
-  } catch (error) {
-    // If yargs fails, return empty object
-    return {};
-  }
-}
+import { parseServerCliArgs } from './cli-parser.js';
 
 interface ToolDefinition<
   TSchemaType extends TSchema,
