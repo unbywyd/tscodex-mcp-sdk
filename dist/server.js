@@ -141,6 +141,11 @@ export class McpServer extends EventEmitter {
         if (this.isInitialized) {
             throw new Error('Server already initialized');
         }
+        // Check for --meta flag and disable logger if needed (in case logger was set before flag check)
+        const isMetaMode = process.argv.includes('--meta') || process.argv.includes('--metadata');
+        if (isMetaMode) {
+            this.logger = undefined;
+        }
         try {
             // 1. Load configuration (FIRST!)
             await this.loadConfiguration();
