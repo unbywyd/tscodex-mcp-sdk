@@ -37,6 +37,7 @@ export interface HealthResponse {
         mcp: string;
         health: string;
         config?: string;
+        updateConfig?: string;
         projectRoot?: string;
     };
     error?: string;

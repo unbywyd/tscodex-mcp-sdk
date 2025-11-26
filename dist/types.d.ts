@@ -89,7 +89,8 @@ export interface McpServerOptions<TConfig extends Record<string, unknown> = Reco
     description: string;
     id?: string;
     configSchema?: TSchema;
-    loadConfig?: () => Promise<TConfig>;
+    configFile?: string;
+    loadConfig?: (parsedConfig: Partial<TConfig>) => Promise<TConfig>;
     auth?: AuthConfig<TRoles, TSession, TConfig>;
     mcpPath?: string;
     corsOptions?: CorsOptions;
@@ -162,10 +163,25 @@ export interface ToolConfig<TSchemaType extends TSchema, TConfig extends Record<
  * Tool context passed to handlers
  *
  * Provides access to server data without needing to store a reference to the server in closures
+ *
+ * Note: `config` contains full configuration including secrets. Handlers should use
+ * `filterMcpPublicConfig()` utility if they need to return config values in results
+ * to ensure only public MCP parameters (mcp_* keys) are exposed.
  */
 export interface ToolContext<TConfig extends Record<string, unknown> = Record<string, unknown>, TSession extends Record<string, unknown> = Record<string, unknown>> {
-    /** Current server configuration (from Extension + local settings) */
+    /**
+     * Public server configuration (settings, no secrets).
+     * All configuration is public and safe to expose.
+     */
     config: TConfig;
+    /**
+     * Secrets storage - access secrets via get() method.
+     * Secrets are extracted from ENV variables with SECRET_ prefix.
+     *
+     * @example
+     * const apiKey = context.secrets.get('SECRET_PEXELS_API_KEY');
+     */
+    secrets: Map<string, string>;
     /** Project root (workspace) from Extension */
     projectRoot?: string;
     /** Server instance for accessing other methods (if needed) */
@@ -214,8 +230,19 @@ export interface ResourceConfig<TConfig extends Record<string, unknown> = Record
  * Provides access to server data without needing to store a reference to the server in closures
  */
 export interface ResourceContext<TConfig extends Record<string, unknown> = Record<string, unknown>, TSession extends Record<string, unknown> = Record<string, unknown>> {
-    /** Current server configuration (from Extension + local settings) */
+    /**
+     * Public server configuration (settings, no secrets).
+     * All configuration is public and safe to expose.
+     */
     config: TConfig;
+    /**
+     * Secrets storage - access secrets via get() method.
+     * Secrets are extracted from ENV variables with SECRET_ prefix.
+     *
+     * @example
+     * const apiKey = context.secrets.get('SECRET_PEXELS_API_KEY');
+     */
+    secrets: Map<string, string>;
     /** Project root (workspace) from Extension */
     projectRoot?: string;
     /** Server instance for accessing other methods (if needed) */
@@ -262,8 +289,19 @@ export interface PromptConfig<TSchemaType extends TSchema, TConfig extends Recor
  * Provides access to server data without needing to store a reference to the server in closures
  */
 export interface PromptContext<TConfig extends Record<string, unknown> = Record<string, unknown>, TSession extends Record<string, unknown> = Record<string, unknown>> {
-    /** Current server configuration (from Extension + local settings) */
+    /**
+     * Public server configuration (settings, no secrets).
+     * All configuration is public and safe to expose.
+     */
     config: TConfig;
+    /**
+     * Secrets storage - access secrets via get() method.
+     * Secrets are extracted from ENV variables with SECRET_ prefix.
+     *
+     * @example
+     * const apiKey = context.secrets.get('SECRET_PEXELS_API_KEY');
+     */
+    secrets: Map<string, string>;
     /** Project root (workspace) from Extension */
     projectRoot?: string;
     /** Server instance for accessing other methods (if needed) */

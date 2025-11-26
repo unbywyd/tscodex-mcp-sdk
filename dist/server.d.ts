@@ -22,6 +22,7 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
     private httpServer;
     private transportManager;
     private config;
+    private secrets;
     private projectRoot?;
     private session?;
     private tools;
@@ -64,6 +65,12 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
      */
     private filterByAccess;
     /**
+     * Extract secrets from environment variables
+     * Secrets are variables with SECRET_ prefix
+     * They are extracted and removed from process.env to prevent them from being included in config
+     */
+    private extractSecretsFromEnv;
+    /**
      * Load and merge configuration
      */
     private loadConfiguration;
@@ -88,13 +95,34 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
      */
     private handleGetConfig;
     /**
-     * Get config without sensitive fields
+     * Handle update config endpoint
      */
-    private getSafeConfig;
+    private handleUpdateConfig;
+    /**
+     * Update configuration dynamically
+     * Can be called at any time to update server configuration
+     *
+     * @param newConfig - Partial configuration to merge with existing config
+     * @returns Updated configuration
+     */
+    updateConfig(newConfig: Partial<TConfig>): TConfig;
     /**
      * Wrap handler with timeout
      */
     private withTimeout;
+    /**
+     * Create context for handlers
+     *
+     * Handlers receive:
+     * - Public configuration (settings, no secrets) in context.config
+     * - Secrets storage in context.secrets (Map with SECRET_* keys)
+     *
+     * Secrets are extracted from ENV variables with SECRET_ prefix and stored separately
+     * to prevent them from being included in public configuration.
+     *
+     * @returns Context object with public config and secrets storage
+     */
+    private createContext;
     /**
      * Handle error through error handler middleware
      * Transforms errors into human-readable messages for Cursor
@@ -110,6 +138,13 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
      * User can override it by registering their own resource with URI "context"
      */
     private registerDefaultContextResource;
+    /**
+     * Register default config update tool
+     * Allows updating server configuration dynamically via MCP
+     * Uses configSchema if available for type-safe updates, otherwise falls back to generic schema
+     * User can override it by registering their own tool with name "update_config"
+     */
+    private registerDefaultConfigTool;
     /**
      * Generate resource prefix (ID) from server name or use provided ID
      */

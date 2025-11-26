@@ -13,6 +13,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { createServer } from 'http';
 import { EventEmitter } from 'events';
+import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import { validateConfig, updateConfig } from './config.js';
 import { parseRequestBody, sendJsonResponse } from './transport.js';
@@ -27,6 +28,7 @@ export class McpServer extends EventEmitter {
     httpServer;
     transportManager;
     config;
+    secrets = new Map();
     projectRoot;
     session;
     tools = new Map();
@@ -153,7 +155,9 @@ export class McpServer extends EventEmitter {
             this.setupExtensionEndpoints();
             // 5. Register default context resource (if not overridden by user)
             this.registerDefaultContextResource();
-            // 6. Register MCP handlers (only filtered ones)
+            // 6. Register default config update tool (if not overridden by user)
+            this.registerDefaultConfigTool();
+            // 7. Register MCP handlers (only filtered ones)
             this.registerMcpHandlers();
             // 7. Setup transport with MCP server
             this.transportManager.setServer(this.mcpServer);
@@ -330,10 +334,37 @@ export class McpServer extends EventEmitter {
         }
     }
     /**
+     * Extract secrets from environment variables
+     * Secrets are variables with SECRET_ prefix
+     * They are extracted and removed from process.env to prevent them from being included in config
+     */
+    extractSecretsFromEnv() {
+        this.secrets.clear();
+        // Extract all SECRET_* variables from process.env
+        const secretKeys = [];
+        for (const [envKey, value] of Object.entries(process.env)) {
+            if (envKey.startsWith('SECRET_') && value !== undefined) {
+                this.secrets.set(envKey, value);
+                secretKeys.push(envKey);
+            }
+        }
+        // Remove secrets from process.env to prevent them from being included in config
+        // This ensures secrets don't leak into public configuration
+        for (const key of secretKeys) {
+            delete process.env[key];
+        }
+        if (this.logger && this.secrets.size > 0) {
+            this.logger.debug(`Extracted ${this.secrets.size} secrets from ENV:`, Array.from(this.secrets.keys()));
+        }
+    }
+    /**
      * Load and merge configuration
      */
     async loadConfiguration() {
         try {
+            // 0. Extract secrets from ENV first (before loading config)
+            // This ensures secrets don't get included in public configuration
+            this.extractSecretsFromEnv();
             // 1. Read configuration from Extension
             const extensionConfig = process.env.MCP_CONFIG
                 ? JSON.parse(process.env.MCP_CONFIG)
@@ -341,17 +372,30 @@ export class McpServer extends EventEmitter {
             if (this.logger) {
                 this.logger.debug('Extension config loaded:', Object.keys(extensionConfig));
             }
-            // 2. Call loadConfig for additional local settings
+            // 2. Parse local config from CLI, ENV, and file (if configSchema or configFile provided)
             let localConfig = {};
-            if (this.options.loadConfig) {
-                localConfig = await this.options.loadConfig();
+            if (this.options.configSchema || this.options.configFile) {
+                // Use SDK's built-in config loader
+                const { loadConfig } = await import('./config-loader.js');
+                const parsedConfig = await loadConfig({
+                    schema: this.options.configSchema,
+                    configFile: this.options.configFile
+                });
+                localConfig = parsedConfig;
                 if (this.logger) {
-                    this.logger.debug('Local config loaded:', Object.keys(localConfig));
+                    this.logger.debug('Parsed config from CLI/ENV/file:', Object.keys(localConfig));
                 }
             }
-            // 3. Merge: Extension config takes priority (deep merge)
+            // 3. Call loadConfig callback if provided (for custom processing)
+            if (this.options.loadConfig) {
+                localConfig = await this.options.loadConfig(localConfig);
+                if (this.logger) {
+                    this.logger.debug('Processed config from loadConfig:', Object.keys(localConfig));
+                }
+            }
+            // 4. Merge: Extension config takes priority (deep merge)
             const mergedConfig = updateConfig(localConfig, extensionConfig);
-            // 4. Validate via configSchema
+            // 5. Validate via configSchema (strict validation after merge)
             if (this.options.configSchema) {
                 this.config = validateConfig(mergedConfig, this.options.configSchema);
                 if (this.logger) {
@@ -431,6 +475,11 @@ export class McpServer extends EventEmitter {
                     this.handleGetConfig(req, res);
                     return;
                 }
+                // Update config
+                if (req.url === '/gateway/config' && req.method === 'POST') {
+                    await this.handleUpdateConfig(req, res);
+                    return;
+                }
                 // CORS preflight
                 if (req.method === 'OPTIONS') {
                     sendJsonResponse(res, 200, {}, this.corsOptions);
@@ -477,6 +526,7 @@ export class McpServer extends EventEmitter {
                 mcp: `http://${this.host}:${this.port}${this.mcpPath}`,
                 health: `http://${this.host}:${this.port}/health`,
                 config: `http://${this.host}:${this.port}/gateway/config/current`,
+                updateConfig: `http://${this.host}:${this.port}/gateway/config`,
                 projectRoot: `http://${this.host}:${this.port}/gateway/config/project-root`
             },
             auth: this.options.auth ? {
@@ -527,26 +577,74 @@ export class McpServer extends EventEmitter {
      * Handle get config endpoint
      */
     handleGetConfig(_req, res) {
-        // Filter sensitive fields (fields containing 'key', 'token', 'secret', 'password')
-        const safeConfig = this.getSafeConfig();
-        sendJsonResponse(res, 200, safeConfig, this.corsOptions);
+        // Return public configuration (secrets are stored separately and not included)
+        // All config is public - secrets are accessed via context.secrets
+        sendJsonResponse(res, 200, this.config, this.corsOptions);
         if (this.logger) {
             this.logger.debug('Config requested');
         }
     }
     /**
-     * Get config without sensitive fields
+     * Handle update config endpoint
      */
-    getSafeConfig() {
-        const config = { ...this.config };
-        const sensitiveKeys = ['key', 'token', 'secret', 'password', 'apikey'];
-        for (const key in config) {
-            const lowerKey = key.toLowerCase();
-            if (sensitiveKeys.some(sensitive => lowerKey.includes(sensitive))) {
-                config[key] = '***';
+    async handleUpdateConfig(req, res) {
+        try {
+            const body = await parseRequestBody(req);
+            if (!body || !body.config) {
+                sendJsonResponse(res, 400, {
+                    error: 'Invalid request',
+                    message: 'Config object is required'
+                }, this.corsOptions);
+                return;
             }
+            // Update config (deep merge)
+            const previousConfig = { ...this.config };
+            this.config = updateConfig(this.config, body.config);
+            // Validate if schema provided
+            if (this.options.configSchema) {
+                this.config = validateConfig(this.config, this.options.configSchema);
+            }
+            const response = {
+                success: true,
+                message: 'Configuration updated successfully',
+                previousConfig,
+                newConfig: this.config
+            };
+            sendJsonResponse(res, 200, response, this.corsOptions);
+            if (this.logger) {
+                this.logger.info('Configuration updated via gateway endpoint');
+            }
+            // Emit event for config change
+            this.emit('configChanged', this.config, previousConfig);
         }
-        return config;
+        catch (error) {
+            sendJsonResponse(res, 500, {
+                error: 'Failed to update configuration',
+                message: error instanceof Error ? error.message : String(error)
+            }, this.corsOptions);
+        }
+    }
+    /**
+     * Update configuration dynamically
+     * Can be called at any time to update server configuration
+     *
+     * @param newConfig - Partial configuration to merge with existing config
+     * @returns Updated configuration
+     */
+    updateConfig(newConfig) {
+        const previousConfig = { ...this.config };
+        // Deep merge
+        this.config = updateConfig(this.config, newConfig);
+        // Validate if schema provided
+        if (this.options.configSchema) {
+            this.config = validateConfig(this.config, this.options.configSchema);
+        }
+        if (this.logger) {
+            this.logger.info('Configuration updated programmatically');
+        }
+        // Emit event for config change
+        this.emit('configChanged', this.config, previousConfig);
+        return this.config;
     }
     /**
      * Wrap handler with timeout
@@ -560,6 +658,27 @@ export class McpServer extends EventEmitter {
                 }, timeoutMs);
             })
         ]);
+    }
+    /**
+     * Create context for handlers
+     *
+     * Handlers receive:
+     * - Public configuration (settings, no secrets) in context.config
+     * - Secrets storage in context.secrets (Map with SECRET_* keys)
+     *
+     * Secrets are extracted from ENV variables with SECRET_ prefix and stored separately
+     * to prevent them from being included in public configuration.
+     *
+     * @returns Context object with public config and secrets storage
+     */
+    createContext() {
+        return {
+            config: this.config, // Public configuration (no secrets)
+            secrets: this.secrets, // Secrets storage (Map<string, string>)
+            projectRoot: this.projectRoot,
+            server: this,
+            session: this.session
+        };
     }
     /**
      * Handle error through error handler middleware
@@ -611,12 +730,9 @@ export class McpServer extends EventEmitter {
             }
             // Apply defaults and cast parameters
             const validatedParams = Value.Cast(toolDef.schema, args || {});
-            const context = {
-                config: this.config,
-                projectRoot: this.projectRoot,
-                server: this,
-                session: this.session
-            };
+            // Create context with public config and secrets storage
+            // Config is public (no secrets), secrets are accessed via context.secrets
+            const context = this.createContext();
             if (this.logger) {
                 this.logger.debug(`Tool called: ${name}`);
             }
@@ -659,12 +775,9 @@ export class McpServer extends EventEmitter {
             if (!resourceDef) {
                 throw new Error(`Unknown resource: ${uri}`);
             }
-            const context = {
-                config: this.config,
-                projectRoot: this.projectRoot,
-                server: this,
-                session: this.session
-            };
+            // Create context with public config and secrets storage
+            // Config is public (no secrets), secrets are accessed via context.secrets
+            const context = this.createContext();
             if (this.logger) {
                 this.logger.debug(`Resource read: ${uri}`);
             }
@@ -719,12 +832,9 @@ export class McpServer extends EventEmitter {
                 // Apply defaults and cast parameters
                 validatedParams = Value.Cast(promptDef.arguments, args || {});
             }
-            const context = {
-                config: this.config,
-                projectRoot: this.projectRoot,
-                server: this,
-                session: this.session
-            };
+            // Create context with public config and secrets storage
+            // Config is public (no secrets), secrets are accessed via context.secrets
+            const context = this.createContext();
             if (this.logger) {
                 this.logger.debug(`Prompt requested: ${name}`);
             }
@@ -771,6 +881,8 @@ export class McpServer extends EventEmitter {
         this.resources.set(contextUri, {
             handler: async (uri, context) => {
                 const uptime = (Date.now() - this.startTime) / 1000;
+                // Include public configuration (secrets are stored separately and not included)
+                // All config is public - secrets are accessed via context.secrets
                 const contextData = {
                     server: this.options.name,
                     version: this.options.version,
@@ -785,6 +897,7 @@ export class McpServer extends EventEmitter {
                         description: 'MCP is a protocol for connecting AI assistants to external data sources and tools. It enables secure, standardized communication between AI applications and various services.'
                     },
                     projectRoot: context.projectRoot,
+                    config: this.config, // Public configuration (secrets are stored separately)
                     auth: this.options.auth ? {
                         required: this.options.auth.requireSession !== false,
                         hasSession: !!this.session,
@@ -805,6 +918,66 @@ export class McpServer extends EventEmitter {
         });
         if (this.logger) {
             this.logger.debug(`Default context resource registered: ${contextUri}`);
+        }
+    }
+    /**
+     * Register default config update tool
+     * Allows updating server configuration dynamically via MCP
+     * Uses configSchema if available for type-safe updates, otherwise falls back to generic schema
+     * User can override it by registering their own tool with name "update_config"
+     */
+    registerDefaultConfigTool() {
+        const toolName = 'update_config';
+        // Check if user already registered an update_config tool
+        if (this.tools.has(toolName)) {
+            if (this.logger) {
+                this.logger.debug('Default config update tool skipped: user-defined tool already exists');
+            }
+            return;
+        }
+        // Use configSchema if available, otherwise use generic schema
+        let UpdateConfigSchema;
+        if (this.options.configSchema) {
+            // Use the actual config schema - Value.Cast will handle partial updates correctly
+            // Wrap in Type.Object with 'config' key
+            UpdateConfigSchema = Type.Object({
+                config: this.options.configSchema
+            });
+        }
+        else {
+            // Fallback to generic schema if no configSchema provided
+            UpdateConfigSchema = Type.Object({
+                config: Type.Record(Type.String(), Type.Any(), {
+                    description: 'Partial configuration object to merge with existing config. Only provided keys will be updated.'
+                })
+            });
+        }
+        // Register default config update tool
+        this.tools.set(toolName, {
+            handler: async (params, context) => {
+                const { config: newConfig } = params;
+                // Update config using the public method
+                const updatedConfig = this.updateConfig(newConfig);
+                if (this.logger) {
+                    this.logger.info('Configuration updated via MCP tool');
+                }
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                success: true,
+                                message: 'Configuration updated successfully',
+                                config: updatedConfig
+                            }, null, 2)
+                        }]
+                };
+            },
+            schema: UpdateConfigSchema,
+            description: 'Update server configuration dynamically. Merges provided config with existing configuration.',
+            access: undefined // Public tool, no access restrictions
+        });
+        if (this.logger) {
+            this.logger.debug(`Default config update tool registered: ${toolName}${this.options.configSchema ? ' (with configSchema)' : ' (generic schema)'}`);
         }
     }
     /**
