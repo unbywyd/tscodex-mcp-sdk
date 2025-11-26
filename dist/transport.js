@@ -27,16 +27,30 @@ export class TransportManager {
      * Handle incoming HTTP request and create SSE transport
      */
     async handleRequest(req, res) {
-        if (req.url !== this.mcpPath || req.method !== 'POST') {
+        // Parse URL to handle query strings - extract pathname before '?'
+        const pathname = req.url ? req.url.split('?')[0] : '';
+        if (this.logger) {
+            this.logger.debug(`Transport handleRequest: method=${req.method}, url=${req.url}, pathname=${pathname}, mcpPath=${this.mcpPath}`);
+        }
+        if (pathname !== this.mcpPath || req.method !== 'POST') {
+            if (this.logger) {
+                this.logger.debug(`Request rejected: pathname=${pathname} !== mcpPath=${this.mcpPath} or method=${req.method} !== POST`);
+            }
             return;
         }
         if (!this.mcpServer) {
+            if (this.logger) {
+                this.logger.error('MCP server not initialized when handling request');
+            }
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'MCP server not initialized' }));
             return;
         }
         const connectionId = `conn-${++this.connectionCounter}`;
         try {
+            if (this.logger) {
+                this.logger.debug(`Creating SSE transport for connection ${connectionId}`);
+            }
             // Create new SSE transport for this connection
             const transport = new SSEServerTransport(this.mcpPath, res);
             this.transports.set(connectionId, transport);
