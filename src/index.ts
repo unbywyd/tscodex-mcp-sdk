@@ -1,0 +1,67 @@
+/**
+ * @tscodex/mcp-sdk
+ * 
+ * Main entry point for MCP Server SDK
+ * 
+ * This SDK provides a clean abstraction for creating MCP servers
+ * with automatic Extension support and configuration management.
+ */
+
+// Re-export TypeBox for convenience (Type, Static, etc.)
+export { Type, Static } from '@sinclair/typebox';
+
+// Core exports
+export { McpServer } from './server.js';
+export type { 
+  McpServerOptions, 
+  Schema,
+  ToolConfig,
+  ResourceConfig,
+  PromptConfig,
+  ToolHandler,
+  ResourceHandler,
+  PromptHandler,
+  ToolContext,
+  ResourceContext,
+  PromptContext,
+  ToolResult,
+  ResourceResult,
+  PromptResult,
+  Logger,
+  AuthConfig,
+  RoleGuard,
+  ErrorHandler,
+  ErrorHandlerContext,
+  ServerHttpOptions,
+  ServerSecurityOptions,
+  ServerHandlerOptions
+} from './types.js';
+
+// Extension types
+export type {
+  McpServerInfo,
+  ExtensionEndpoint,
+  HealthResponse,
+  ConfigResponse,
+  ServerMetadata
+} from './extension.js';
+
+// Utilities
+export { createHttpTransport, TransportManager, type CorsOptions } from './transport.js';
+export { validateConfig, updateConfig } from './config.js';
+export { loadConfig, type ConfigLoaderOptions } from './config-loader.js';
+export { 
+  safePath, 
+  isPathSafe, 
+  sanitizeFilename, 
+  RateLimiter, 
+  validateRequestSize,
+  filterSecrets,
+  filterMcpConfig,
+  filterMcpPublicConfig,
+  type RateLimitConfig 
+} from './security.js';
+
+// Export version
+export const SDK_VERSION = '0.2.0';
+
