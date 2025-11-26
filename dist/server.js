@@ -1217,6 +1217,13 @@ export class McpServer extends EventEmitter {
         return this.config;
     }
     /**
+     * Get secrets storage (read-only Map)
+     * Secrets are extracted from ENV variables with SECRET_ prefix
+     */
+    getSecrets() {
+        return this.secrets;
+    }
+    /**
      * Get project root (workspace)
      */
     getProjectRoot() {

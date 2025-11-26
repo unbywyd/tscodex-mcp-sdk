@@ -1498,6 +1498,14 @@ export class McpServer<
   }
 
   /**
+   * Get secrets storage (read-only Map)
+   * Secrets are extracted from ENV variables with SECRET_ prefix
+   */
+  getSecrets(): ReadonlyMap<string, string> {
+    return this.secrets;
+  }
+
+  /**
    * Get project root (workspace)
    */
   getProjectRoot(): string | undefined {

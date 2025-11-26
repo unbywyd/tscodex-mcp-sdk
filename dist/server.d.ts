@@ -237,6 +237,11 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
      */
     getConfig(): TConfig;
     /**
+     * Get secrets storage (read-only Map)
+     * Secrets are extracted from ENV variables with SECRET_ prefix
+     */
+    getSecrets(): ReadonlyMap<string, string>;
+    /**
      * Get project root (workspace)
      */
     getProjectRoot(): string | undefined;
