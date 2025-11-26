@@ -1617,7 +1617,15 @@ export class McpServer<
    * Setup graceful shutdown handlers for SIGINT and SIGTERM
    */
   private setupGracefulShutdown(): void {
+    let isShuttingDown = false;
+    
     const shutdown = async (signal: string) => {
+      // Prevent multiple shutdown attempts
+      if (isShuttingDown) {
+        return;
+      }
+      isShuttingDown = true;
+      
       if (this.logger) {
         this.logger.info(`Received ${signal}, shutting down gracefully...`);
       }
