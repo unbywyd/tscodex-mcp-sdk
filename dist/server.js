@@ -56,7 +56,7 @@ export class McpServer extends EventEmitter {
     constructor(options) {
         super();
         this.options = options;
-        // Check for --meta flag - disable logging for clean JSON output
+        // Check for --meta flag - SDK handles this completely
         const isMetaMode = process.argv.includes('--meta') || process.argv.includes('--metadata');
         // Validate required fields
         if (!options.name || typeof options.name !== 'string') {
@@ -78,7 +78,8 @@ export class McpServer extends EventEmitter {
         this.mcpPath = process.env.MCP_PATH || options.mcpPath || '/mcp';
         // CORS defaults to permissive (*) if not specified
         this.corsOptions = options.corsOptions ?? undefined;
-        // Disable logger in meta mode for clean JSON output
+        // SDK manages logger: disable in meta mode for clean JSON output
+        // This ensures no logs are printed when --meta flag is used
         this.logger = isMetaMode ? undefined : options.logger;
         this.errorHandler = options.errorHandler;
         this.startTime = Date.now();
@@ -141,7 +142,8 @@ export class McpServer extends EventEmitter {
         if (this.isInitialized) {
             throw new Error('Server already initialized');
         }
-        // Check for --meta flag and disable logger if needed (in case logger was set before flag check)
+        // SDK manages meta mode: ensure logger is disabled if --meta flag is present
+        // This check ensures logger is disabled even if it was set before constructor
         const isMetaMode = process.argv.includes('--meta') || process.argv.includes('--metadata');
         if (isMetaMode) {
             this.logger = undefined;
