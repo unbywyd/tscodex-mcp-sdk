@@ -36,6 +36,7 @@ export interface HealthResponse {
     endpoints?: {
         mcp: string;
         health: string;
+        metadata?: string;
         config?: string;
         updateConfig?: string;
         projectRoot?: string;

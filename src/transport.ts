@@ -40,9 +40,18 @@ export class TransportManager {
       this.logger.debug(`Transport handleRequest: method=${req.method}, url=${req.url}, pathname=${pathname}, mcpPath=${this.mcpPath}`);
     }
     
-    if (pathname !== this.mcpPath || req.method !== 'POST') {
+    // SSE can use both GET and POST methods
+    // Cursor typically uses POST for initial connection and GET for SSE stream
+    if (pathname !== this.mcpPath) {
       if (this.logger) {
-        this.logger.debug(`Request rejected: pathname=${pathname} !== mcpPath=${this.mcpPath} or method=${req.method} !== POST`);
+        this.logger.debug(`Request rejected: pathname=${pathname} !== mcpPath=${this.mcpPath}`);
+      }
+      return;
+    }
+    
+    if (req.method !== 'POST' && req.method !== 'GET') {
+      if (this.logger) {
+        this.logger.debug(`Request rejected: unsupported method=${req.method} (expected POST or GET)`);
       }
       return;
     }

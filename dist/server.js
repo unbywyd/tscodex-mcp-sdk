@@ -75,7 +75,7 @@ export class McpServer extends EventEmitter {
         const cliArgs = parseServerCliArgs();
         // Read parameters with priority: MCP_* env vars -> env vars without prefix -> CLI args -> defaults
         // Priority: process.env.MCP_HOST -> process.env.HOST -> CLI --host -> default
-        this.host = process.env.MCP_HOST || process.env.HOST || cliArgs.host || '0.0.0.0';
+        this.host = process.env.MCP_HOST || process.env.HOST || cliArgs.host || '127.0.0.1';
         // Priority: process.env.MCP_PORT -> process.env.PORT -> CLI --port -> default
         const portValue = process.env.MCP_PORT || process.env.PORT || cliArgs.port || '3848';
         this.port = parseInt(String(portValue), 10);
@@ -494,6 +494,11 @@ export class McpServer extends EventEmitter {
                     this.handleGetConfig(req, res);
                     return;
                 }
+                // Get metadata
+                if (req.url === '/gateway/metadata' && req.method === 'GET') {
+                    this.handleGetMetadata(req, res);
+                    return;
+                }
                 // Update config
                 if (req.url === '/gateway/config' && req.method === 'POST') {
                     await this.handleUpdateConfig(req, res);
@@ -544,6 +549,7 @@ export class McpServer extends EventEmitter {
             endpoints: {
                 mcp: `http://${this.host}:${this.port}${this.mcpPath}`,
                 health: `http://${this.host}:${this.port}/health`,
+                metadata: `http://${this.host}:${this.port}/gateway/metadata`,
                 config: `http://${this.host}:${this.port}/gateway/config/current`,
                 updateConfig: `http://${this.host}:${this.port}/gateway/config`,
                 projectRoot: `http://${this.host}:${this.port}/gateway/config/project-root`
@@ -601,6 +607,17 @@ export class McpServer extends EventEmitter {
         sendJsonResponse(res, 200, this.config, this.corsOptions);
         if (this.logger) {
             this.logger.debug('Config requested');
+        }
+    }
+    /**
+     * Handle get metadata endpoint
+     * Returns server metadata including tools, resources, prompts, and configuration schema
+     */
+    handleGetMetadata(_req, res) {
+        const metadata = this.getMetadata();
+        sendJsonResponse(res, 200, metadata, this.corsOptions);
+        if (this.logger) {
+            this.logger.debug('Metadata requested');
         }
     }
     /**

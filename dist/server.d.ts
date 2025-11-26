@@ -95,6 +95,11 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
      */
     private handleGetConfig;
     /**
+     * Handle get metadata endpoint
+     * Returns server metadata including tools, resources, prompts, and configuration schema
+     */
+    private handleGetMetadata;
+    /**
      * Handle update config endpoint
      */
     private handleUpdateConfig;
