@@ -38,6 +38,7 @@ function parseServerCliArgs() {
             .version(false)
             .strict(false)
             .parseSync();
+        console.log('parsed', parsed);
         return {
             host: parsed.host,
             port: parsed.port,

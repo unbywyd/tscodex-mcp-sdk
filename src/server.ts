@@ -67,7 +67,7 @@ function parseServerCliArgs(): { host?: string; port?: string | number; mcpPath?
       .version(false)
       .strict(false)
       .parseSync();
-
+    console.log('parsed', parsed);
     return {
       host: parsed.host as string | undefined,
       port: parsed.port as string | number | undefined,
