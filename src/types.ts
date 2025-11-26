@@ -148,7 +148,9 @@ export interface McpServerOptions<
   // IMPORTANT: port, host, and mcpPath are passed by Extension via environment variables!
   // These parameters are used only for standalone mode (without Extension)
   mcpPath?: string;                 // Path for MCP endpoint (Extension passes via MCP_PATH env var, default '/mcp')
-  corsOptions?: CorsOptions;        // CORS configuration (default: permissive - allow all '*')
+
+  // HTTP Server (OPTIONAL)
+  httpServer?: import('http').Server;  // OPTIONAL: External HTTP server (if provided, SDK will use it instead of creating its own)
 
   // HTTP Server options (OPTIONAL)
   httpOptions?: ServerHttpOptions;   // HTTP server configuration (timeouts, keep-alive, etc.)
