@@ -2,7 +2,6 @@
  * TypeScript types and interfaces for MCP SDK
  */
 import type { TSchema, Static } from '@sinclair/typebox';
-import type { CorsOptions } from './transport.js';
 import type { RateLimitConfig } from './security.js';
 /**
  * TypeBox Schema type - we use TypeBox for typing and validation
@@ -93,7 +92,7 @@ export interface McpServerOptions<TConfig extends Record<string, unknown> = Reco
     loadConfig?: (parsedConfig: Partial<TConfig>) => Promise<TConfig>;
     auth?: AuthConfig<TRoles, TSession, TConfig>;
     mcpPath?: string;
-    corsOptions?: CorsOptions;
+    httpServer?: import('http').Server;
     httpOptions?: ServerHttpOptions;
     securityOptions?: ServerSecurityOptions;
     handlerOptions?: ServerHandlerOptions;

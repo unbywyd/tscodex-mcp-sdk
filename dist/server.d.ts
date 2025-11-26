@@ -20,7 +20,7 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
     private options;
     private mcpServer;
     private httpServer;
-    private transportManager;
+    private transport;
     private config;
     private secrets;
     private projectRoot?;
@@ -31,7 +31,6 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
     private port;
     private host;
     private mcpPath;
-    private corsOptions?;
     private httpOptions;
     private securityOptions;
     private handlerOptions;

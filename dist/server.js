@@ -16,8 +16,8 @@ import { EventEmitter } from 'events';
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import { validateConfig, updateConfig } from './config.js';
-import { parseRequestBody, sendJsonResponse } from './transport.js';
-import { TransportManager } from './transport.js';
+import { parseRequestBody } from './transport.js';
+import { createSimpleHttpTransport } from './transport.js';
 import { RateLimiter, validateRequestSize } from './security.js';
 import { parseServerCliArgs } from './cli-parser.js';
 /**
@@ -27,7 +27,7 @@ export class McpServer extends EventEmitter {
     options;
     mcpServer;
     httpServer;
-    transportManager;
+    transport;
     config;
     secrets = new Map();
     projectRoot;
@@ -38,7 +38,6 @@ export class McpServer extends EventEmitter {
     port;
     host;
     mcpPath;
-    corsOptions;
     httpOptions;
     securityOptions;
     handlerOptions;
@@ -85,8 +84,6 @@ export class McpServer extends EventEmitter {
         // Priority: process.env.MCP_PATH -> process.env.PATH (but skip system PATH) -> CLI --mcp-path -> options.mcpPath -> default
         // Note: We skip process.env.PATH for mcpPath as it's usually a system variable
         this.mcpPath = process.env.MCP_PATH || cliArgs.mcpPath || options.mcpPath || '/mcp';
-        // CORS defaults to permissive (*) if not specified
-        this.corsOptions = options.corsOptions ?? undefined;
         // SDK manages logger: disable in meta mode for clean JSON output
         // This ensures no logs are printed when --meta flag is used
         this.logger = isMetaMode ? undefined : options.logger;
@@ -133,11 +130,14 @@ export class McpServer extends EventEmitter {
                 prompts: {},
             },
         });
-        // Create HTTP Server with options
-        this.httpServer = createServer();
+        // Use external HTTP server if provided, otherwise create own
+        this.httpServer = options.httpServer || createServer();
         this.applyHttpOptions();
-        // Create Transport Manager
-        this.transportManager = new TransportManager(this.mcpPath, this.logger);
+        // Use simple HTTP transport (Cursor compatible, like old version)
+        this.transport = createSimpleHttpTransport(this.mcpPath, this.httpServer, this.logger);
+        if (this.logger) {
+            this.logger.debug('Using simple HTTP transport (Cursor compatible)');
+        }
         if (this.logger) {
             this.logger.info(`McpServer created: ${options.name} v${options.version}`);
             this.logger.debug(`Port: ${this.port}, Host: ${this.host}`);
@@ -178,8 +178,13 @@ export class McpServer extends EventEmitter {
             this.registerDefaultConfigTool();
             // 7. Register MCP handlers (only filtered ones)
             this.registerMcpHandlers();
-            // 7. Setup transport with MCP server
-            this.transportManager.setServer(this.mcpServer);
+            // 8. Setup transport with MCP server
+            // Connect MCP server to simple HTTP transport (one-time connection)
+            // The transport's onmessage will be called for each request, and responses
+            // will be sent via transport.send() which MCP server calls
+            await this.mcpServer.connect(this.transport);
+            // Start the transport (sets up HTTP request handler)
+            await this.transport.start();
             if (this.logger) {
                 this.logger.info('McpServer initialized successfully');
             }
@@ -460,10 +465,11 @@ export class McpServer extends EventEmitter {
                         validateRequestSize(req.headers['content-length'], this.securityOptions.maxRequestBodySize);
                     }
                     catch (error) {
-                        sendJsonResponse(res, 413, {
+                        res.writeHead(413, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
                             error: 'Request Entity Too Large',
                             message: error instanceof Error ? error.message : String(error)
-                        }, this.corsOptions);
+                        }));
                         return;
                     }
                 }
@@ -472,10 +478,14 @@ export class McpServer extends EventEmitter {
                     const clientId = req.socket.remoteAddress || 'unknown';
                     if (!this.rateLimiter.isAllowed(clientId)) {
                         const headers = this.rateLimiter.getHeaders(clientId);
-                        sendJsonResponse(res, 429, {
+                        res.writeHead(429, {
+                            'Content-Type': 'application/json',
+                            ...headers
+                        });
+                        res.end(JSON.stringify({
                             error: 'Too Many Requests',
                             message: this.securityOptions.rateLimit?.message || 'Rate limit exceeded'
-                        }, this.corsOptions, headers);
+                        }));
                         return;
                     }
                 }
@@ -504,24 +514,27 @@ export class McpServer extends EventEmitter {
                     await this.handleUpdateConfig(req, res);
                     return;
                 }
-                // CORS preflight
+                // OPTIONS request (CORS preflight) - simple response
                 if (req.method === 'OPTIONS') {
-                    sendJsonResponse(res, 200, {}, this.corsOptions);
+                    res.writeHead(200);
+                    res.end();
                     return;
                 }
-                // MCP transport endpoint
+                // MCP transport endpoint - handled by simple HTTP transport internally
+                // (transport.start() sets up the handler, so we skip it here)
                 if (req.url === this.mcpPath) {
-                    await this.transportManager.handleRequest(req, res);
                     return;
                 }
                 // 404 Not Found
-                sendJsonResponse(res, 404, { error: 'Not Found' }, this.corsOptions);
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Not Found' }));
             }
             catch (error) {
                 if (this.logger) {
                     this.logger.error('Request handling error:', error);
                 }
-                sendJsonResponse(res, 500, { error: 'Internal Server Error' }, this.corsOptions);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Internal Server Error' }));
             }
         });
         if (this.logger) {
@@ -539,7 +552,7 @@ export class McpServer extends EventEmitter {
             version: this.options.version,
             description: this.options.description,
             uptime,
-            connections: this.transportManager.getConnectionsCount(),
+            connections: this.transport.getConnectionsCount(),
             protocolVersion: this.protocolVersion,
             protocol: {
                 name: 'Model Context Protocol',
@@ -560,7 +573,8 @@ export class McpServer extends EventEmitter {
                 sessionValid: !!this.session
             } : undefined
         };
-        sendJsonResponse(res, 200, response, this.corsOptions);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(response));
         if (this.logger) {
             this.logger.debug('Hello endpoint requested');
         }
@@ -572,9 +586,10 @@ export class McpServer extends EventEmitter {
         try {
             const body = await parseRequestBody(req);
             if (!body.projectRoot || typeof body.projectRoot !== 'string') {
-                sendJsonResponse(res, 400, {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
                     error: 'Invalid request: projectRoot is required and must be a string'
-                }, this.corsOptions);
+                }));
                 return;
             }
             const previousRoot = this.projectRoot;
@@ -585,17 +600,19 @@ export class McpServer extends EventEmitter {
                 previousRoot,
                 newRoot: this.projectRoot
             };
-            sendJsonResponse(res, 200, response, this.corsOptions);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(response));
             if (this.logger) {
                 this.logger.info(`Project root updated: ${previousRoot} -> ${this.projectRoot}`);
             }
             this.emit('projectRootChanged', this.projectRoot, previousRoot);
         }
         catch (error) {
-            sendJsonResponse(res, 500, {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
                 error: 'Failed to update project root',
                 message: error instanceof Error ? error.message : String(error)
-            }, this.corsOptions);
+            }));
         }
     }
     /**
@@ -604,7 +621,8 @@ export class McpServer extends EventEmitter {
     handleGetConfig(_req, res) {
         // Return public configuration (secrets are stored separately and not included)
         // All config is public - secrets are accessed via context.secrets
-        sendJsonResponse(res, 200, this.config, this.corsOptions);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(this.config));
         if (this.logger) {
             this.logger.debug('Config requested');
         }
@@ -615,7 +633,8 @@ export class McpServer extends EventEmitter {
      */
     handleGetMetadata(_req, res) {
         const metadata = this.getMetadata();
-        sendJsonResponse(res, 200, metadata, this.corsOptions);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(metadata));
         if (this.logger) {
             this.logger.debug('Metadata requested');
         }
@@ -627,10 +646,11 @@ export class McpServer extends EventEmitter {
         try {
             const body = await parseRequestBody(req);
             if (!body || !body.config) {
-                sendJsonResponse(res, 400, {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
                     error: 'Invalid request',
                     message: 'Config object is required'
-                }, this.corsOptions);
+                }));
                 return;
             }
             // Update config (deep merge)
@@ -646,7 +666,8 @@ export class McpServer extends EventEmitter {
                 previousConfig,
                 newConfig: this.config
             };
-            sendJsonResponse(res, 200, response, this.corsOptions);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(response));
             if (this.logger) {
                 this.logger.info('Configuration updated via gateway endpoint');
             }
@@ -654,10 +675,11 @@ export class McpServer extends EventEmitter {
             this.emit('configChanged', this.config, previousConfig);
         }
         catch (error) {
-            sendJsonResponse(res, 500, {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
                 error: 'Failed to update configuration',
                 message: error instanceof Error ? error.message : String(error)
-            }, this.corsOptions);
+            }));
         }
     }
     /**
@@ -925,7 +947,7 @@ export class McpServer extends EventEmitter {
                     description: this.options.description,
                     id: this.resourcePrefix,
                     uptime,
-                    connections: this.transportManager.getConnectionsCount(),
+                    connections: this.transport.getConnectionsCount(),
                     protocolVersion: this.protocolVersion,
                     protocol: {
                         name: 'Model Context Protocol',

@@ -7,6 +7,21 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { Logger } from './types.js';
 /**
+ * Simple HTTP transport (request-response, no SSE)
+ * Compatible with Cursor and other MCP clients that expect standard JSON-RPC over HTTP POST
+ *
+ * This transport creates a transport object compatible with MCP SDK's Server.connect() method
+ */
+export declare function createSimpleHttpTransport(mcpPath: string, httpServer: import('http').Server, logger?: Logger): {
+    start: () => Promise<void>;
+    send: (message: any) => Promise<void>;
+    close: () => Promise<void>;
+    getConnectionsCount: () => number;
+    onmessage?: (message: any) => void;
+    onclose?: () => void;
+    onerror?: (error: Error) => void;
+};
+/**
  * Transport manager for handling multiple MCP connections
  */
 export declare class TransportManager {

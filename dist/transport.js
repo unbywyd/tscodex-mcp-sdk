@@ -5,6 +5,147 @@
  */
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 /**
+ * Simple HTTP transport (request-response, no SSE)
+ * Compatible with Cursor and other MCP clients that expect standard JSON-RPC over HTTP POST
+ *
+ * This transport creates a transport object compatible with MCP SDK's Server.connect() method
+ */
+export function createSimpleHttpTransport(mcpPath, httpServer, logger) {
+    let currentResponse = null;
+    let responseTimeout = null;
+    const transport = {
+        onmessage: undefined,
+        onclose: undefined,
+        onerror: undefined,
+        async start() {
+            httpServer.on('request', async (req, res) => {
+                const pathname = req.url ? req.url.split('?')[0] : '';
+                if (logger) {
+                    logger.debug(`SimpleHTTP: method=${req.method}, pathname=${pathname}, mcpPath=${mcpPath}`);
+                }
+                // Only handle POST requests to the specified path
+                if (req.method !== 'POST' || pathname !== mcpPath) {
+                    if (logger) {
+                        logger.debug(`SimpleHTTP: request rejected (method=${req.method}, pathname=${pathname})`);
+                    }
+                    res.statusCode = 404;
+                    res.end();
+                    return;
+                }
+                try {
+                    // Parse request body
+                    const body = await parseRequestBody(req);
+                    const method = body.method || 'unknown';
+                    // Check if this is a notification
+                    const hasId = body.hasOwnProperty('id') && body.id !== null && body.id !== undefined;
+                    const isNotification = !hasId || (typeof method === 'string' && method.startsWith('notifications/'));
+                    // For notifications, send immediate empty response
+                    if (isNotification) {
+                        if (logger) {
+                            logger.debug(`SimpleHTTP: notification ${method}`);
+                        }
+                        // Process the notification asynchronously
+                        if (transport.onmessage) {
+                            transport.onmessage(body);
+                        }
+                        // Send immediate empty response for notifications
+                        res.statusCode = 204;
+                        res.end();
+                        return;
+                    }
+                    // For regular requests, store the response object
+                    if (logger) {
+                        logger.debug(`SimpleHTTP: request ${method}`);
+                    }
+                    currentResponse = res;
+                    // Set a timeout to prevent hanging connections (60 seconds)
+                    const timeoutMs = 60000;
+                    responseTimeout = setTimeout(() => {
+                        if (logger) {
+                            logger.warn(`SimpleHTTP: timeout for ${method}`);
+                        }
+                        if (currentResponse) {
+                            res.statusCode = 500;
+                            res.setHeader('Content-Type', 'application/json');
+                            res.end(JSON.stringify({
+                                jsonrpc: '2.0',
+                                error: {
+                                    code: -32603,
+                                    message: 'Request timeout',
+                                    data: `Method ${method} did not respond within ${timeoutMs / 1000} seconds`
+                                },
+                                id: body.id || null
+                            }));
+                            currentResponse = null;
+                        }
+                    }, timeoutMs);
+                    // Pass the message to the MCP server
+                    if (transport.onmessage) {
+                        transport.onmessage(body);
+                    }
+                }
+                catch (error) {
+                    if (logger) {
+                        logger.error('SimpleHTTP: Error handling request', error);
+                    }
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({
+                        jsonrpc: '2.0',
+                        error: {
+                            code: -32603,
+                            message: 'Internal error',
+                            data: error instanceof Error ? error.message : String(error)
+                        },
+                        id: null
+                    }));
+                }
+            });
+        },
+        // Send a message (used to send responses)
+        async send(message) {
+            if (logger) {
+                logger.debug('SimpleHTTP: sending response');
+            }
+            // Clear timeout if set
+            if (responseTimeout) {
+                clearTimeout(responseTimeout);
+                responseTimeout = null;
+            }
+            // Send the response if we have a response object
+            if (currentResponse) {
+                currentResponse.statusCode = 200;
+                currentResponse.setHeader('Content-Type', 'application/json');
+                currentResponse.end(JSON.stringify(message));
+                currentResponse = null;
+            }
+            return Promise.resolve();
+        },
+        // Close the transport
+        async close() {
+            if (logger) {
+                logger.debug('SimpleHTTP: closing transport');
+            }
+            // Clear any pending timeout
+            if (responseTimeout) {
+                clearTimeout(responseTimeout);
+                responseTimeout = null;
+            }
+            // Clear response object
+            currentResponse = null;
+            if (transport.onclose) {
+                transport.onclose();
+            }
+            return Promise.resolve();
+        },
+        // Get active connections count (for simple HTTP, it's stateless - return 0 or 1 if there's a pending response)
+        getConnectionsCount() {
+            return currentResponse ? 1 : 0;
+        }
+    };
+    return transport;
+}
+/**
  * Transport manager for handling multiple MCP connections
  */
 export class TransportManager {
