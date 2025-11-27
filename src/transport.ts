@@ -45,13 +45,18 @@ export function createSimpleHttpTransport(
         }
         
         // Only handle POST requests to the specified path
+        // Don't send 404 here - let other handlers (extension endpoints) process the request
         if (req.method !== 'POST' || pathname !== mcpPath) {
           if (logger) {
-            logger.debug(`SimpleHTTP: request rejected (method=${req.method}, pathname=${pathname})`);
+            logger.debug(`SimpleHTTP: skipping (method=${req.method}, pathname=${pathname}), letting extension endpoints handle it`);
           }
-          res.statusCode = 404;
-          res.end();
+          // Don't send response - let extension endpoints handle it
+          // Just return without doing anything
           return;
+        }
+        
+        if (logger) {
+          logger.debug(`SimpleHTTP: handling MCP request on ${mcpPath}`);
         }
         
         try {
