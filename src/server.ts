@@ -779,11 +779,22 @@ export class McpServer<
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(response));
 
-      if (this.logger) {
-        this.logger.info(`Project root updated: ${previousRoot} -> ${this.projectRoot}`);
-      }
-
-      this.emit('projectRootChanged', this.projectRoot, previousRoot);
+      // Emit event asynchronously to prevent errors from affecting response
+      // This ensures that any errors in event handlers don't break the HTTP response
+      setImmediate(() => {
+        try {
+          if (this.logger) {
+            this.logger.info(`Project root updated: ${previousRoot} -> ${this.projectRoot}`);
+          }
+          this.emit('projectRootChanged', this.projectRoot, previousRoot);
+        } catch (error) {
+          // Log error but don't affect the response
+          // Event handlers should not break the HTTP transport layer
+          if (this.logger) {
+            this.logger.error('Error in projectRootChanged event handler:', error);
+          }
+        }
+      });
     } catch (error) {
       // Only send error response if headers haven't been sent yet
       if (!res.headersSent) {
@@ -864,12 +875,23 @@ export class McpServer<
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(response));
 
-      if (this.logger) {
-        this.logger.info('Configuration updated via gateway endpoint');
-      }
-
-      // Emit event for config change
-      this.emit('configChanged', this.config, previousConfig);
+      // Emit event asynchronously to prevent errors from affecting response
+      // This ensures that any errors in event handlers don't break the HTTP response
+      setImmediate(() => {
+        try {
+          if (this.logger) {
+            this.logger.info('Configuration updated via gateway endpoint');
+          }
+          // Emit event for config change
+          this.emit('configChanged', this.config, previousConfig);
+        } catch (error) {
+          // Log error but don't affect the response
+          // Event handlers should not break the HTTP transport layer
+          if (this.logger) {
+            this.logger.error('Error in configChanged event handler:', error);
+          }
+        }
+      });
     } catch (error) {
       // Only send error response if headers haven't been sent yet
       if (!res.headersSent) {
@@ -910,7 +932,18 @@ export class McpServer<
     }
 
     // Emit event for config change
-    this.emit('configChanged', this.config, previousConfig);
+    // Use setImmediate to prevent errors in event handlers from breaking the caller
+    setImmediate(() => {
+      try {
+        this.emit('configChanged', this.config, previousConfig);
+      } catch (error) {
+        // Log error but don't affect the caller
+        // Event handlers should not break the calling code
+        if (this.logger) {
+          this.logger.error('Error in configChanged event handler (updateConfig):', error);
+        }
+      }
+    });
 
     return this.config;
   }
