@@ -459,6 +459,11 @@ export class McpServer extends EventEmitter {
     setupExtensionEndpoints() {
         this.httpServer.on('request', async (req, res) => {
             try {
+                // Normalize URL - remove query string and hash
+                const urlPath = req.url ? req.url.split('?')[0].split('#')[0] : '/';
+                if (this.logger) {
+                    this.logger.debug(`Extension endpoint handler: ${req.method} ${urlPath}`);
+                }
                 // Validate request size
                 if (this.securityOptions.validateRequestSize && req.headers['content-length']) {
                     try {
@@ -490,27 +495,30 @@ export class McpServer extends EventEmitter {
                     }
                 }
                 // Hello endpoint (health check with extended info)
-                if (req.url === '/health' && req.method === 'GET') {
+                if (urlPath === '/health' && req.method === 'GET') {
                     this.hello(req, res);
                     return;
                 }
                 // Update project root
-                if (req.url === '/gateway/config/project-root' && req.method === 'POST') {
+                if (urlPath === '/gateway/config/project-root' && req.method === 'POST') {
+                    if (this.logger) {
+                        this.logger.debug(`Handling update project root request`);
+                    }
                     await this.handleUpdateProjectRoot(req, res);
                     return;
                 }
                 // Get config
-                if (req.url === '/gateway/config/current' && req.method === 'GET') {
+                if (urlPath === '/gateway/config/current' && req.method === 'GET') {
                     this.handleGetConfig(req, res);
                     return;
                 }
                 // Get metadata
-                if (req.url === '/gateway/metadata' && req.method === 'GET') {
+                if (urlPath === '/gateway/metadata' && req.method === 'GET') {
                     this.handleGetMetadata(req, res);
                     return;
                 }
                 // Update config
-                if (req.url === '/gateway/config' && req.method === 'POST') {
+                if (urlPath === '/gateway/config' && req.method === 'POST') {
                     await this.handleUpdateConfig(req, res);
                     return;
                 }
@@ -522,7 +530,7 @@ export class McpServer extends EventEmitter {
                 }
                 // MCP transport endpoint - handled by simple HTTP transport internally
                 // (transport.start() sets up the handler, so we skip it here)
-                if (req.url === this.mcpPath) {
+                if (urlPath === this.mcpPath) {
                     return;
                 }
                 // 404 Not Found
@@ -595,10 +603,20 @@ export class McpServer extends EventEmitter {
         try {
             const body = await parseRequestBody(req);
             if (!body.projectRoot || typeof body.projectRoot !== 'string') {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    error: 'Invalid request: projectRoot is required and must be a string'
-                }));
+                if (!res.headersSent) {
+                    try {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            error: 'Invalid request: projectRoot is required and must be a string'
+                        }));
+                    }
+                    catch (sendError) {
+                        // Connection might be closed - just log and continue
+                        if (this.logger) {
+                            this.logger.debug('Failed to send error response in handleUpdateProjectRoot (connection closed):', sendError);
+                        }
+                    }
+                }
                 return;
             }
             const previousRoot = this.projectRoot;
@@ -609,8 +627,18 @@ export class McpServer extends EventEmitter {
                 previousRoot,
                 newRoot: this.projectRoot
             };
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(response));
+            if (!res.headersSent) {
+                try {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(response));
+                }
+                catch (sendError) {
+                    // Connection might be closed - just log and continue
+                    if (this.logger) {
+                        this.logger.debug('Failed to send response in handleUpdateProjectRoot (connection closed):', sendError);
+                    }
+                }
+            }
             // Emit event asynchronously to prevent errors from affecting response
             // This ensures that any errors in event handlers don't break the HTTP response
             setImmediate(() => {
@@ -632,11 +660,19 @@ export class McpServer extends EventEmitter {
         catch (error) {
             // Only send error response if headers haven't been sent yet
             if (!res.headersSent) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    error: 'Failed to update project root',
-                    message: error instanceof Error ? error.message : String(error)
-                }));
+                try {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        error: 'Failed to update project root',
+                        message: error instanceof Error ? error.message : String(error)
+                    }));
+                }
+                catch (sendError) {
+                    // If sending error response fails, just log it
+                    if (this.logger) {
+                        this.logger.error('Failed to send error response in handleUpdateProjectRoot:', sendError);
+                    }
+                }
             }
             else {
                 // Headers already sent - log error but don't try to send response
