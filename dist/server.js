@@ -533,8 +533,17 @@ export class McpServer extends EventEmitter {
                 if (this.logger) {
                     this.logger.error('Request handling error:', error);
                 }
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Internal Server Error' }));
+                // Only send error response if headers haven't been sent yet
+                if (!res.headersSent) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Internal Server Error' }));
+                }
+                else {
+                    // Headers already sent - log error but don't try to send response
+                    if (this.logger) {
+                        this.logger.error('Error after response sent in request handler:', error);
+                    }
+                }
             }
         });
         if (this.logger) {
@@ -608,11 +617,20 @@ export class McpServer extends EventEmitter {
             this.emit('projectRootChanged', this.projectRoot, previousRoot);
         }
         catch (error) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                error: 'Failed to update project root',
-                message: error instanceof Error ? error.message : String(error)
-            }));
+            // Only send error response if headers haven't been sent yet
+            if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    error: 'Failed to update project root',
+                    message: error instanceof Error ? error.message : String(error)
+                }));
+            }
+            else {
+                // Headers already sent - log error but don't try to send response
+                if (this.logger) {
+                    this.logger.error('Error after response sent in handleUpdateProjectRoot:', error);
+                }
+            }
         }
     }
     /**
@@ -675,11 +693,20 @@ export class McpServer extends EventEmitter {
             this.emit('configChanged', this.config, previousConfig);
         }
         catch (error) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                error: 'Failed to update configuration',
-                message: error instanceof Error ? error.message : String(error)
-            }));
+            // Only send error response if headers haven't been sent yet
+            if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    error: 'Failed to update configuration',
+                    message: error instanceof Error ? error.message : String(error)
+                }));
+            }
+            else {
+                // Headers already sent - log error but don't try to send response
+                if (this.logger) {
+                    this.logger.error('Error after response sent in handleUpdateConfig:', error);
+                }
+            }
         }
     }
     /**
