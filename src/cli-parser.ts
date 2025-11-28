@@ -72,7 +72,7 @@ export function parseServerCliArgs(): {
   return {
     host: parsed.host as string | undefined,
     port: parsed.port as string | number | undefined,
-    mcpPath: parsed.mcpPath as string | undefined, // minimist + kebabToCamel конвертирует --mcp-path в mcpPath
+    mcpPath: parsed.mcpPath as string | undefined, // minimist + kebabToCamel converts --mcp-path to mcpPath
     projectRoot: parsed.projectRoot as string | undefined, // --project-root -> projectRoot
   };
 }

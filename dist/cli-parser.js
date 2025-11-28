@@ -61,7 +61,7 @@ export function parseServerCliArgs() {
     return {
         host: parsed.host,
         port: parsed.port,
-        mcpPath: parsed.mcpPath, // minimist + kebabToCamel конвертирует --mcp-path в mcpPath
+        mcpPath: parsed.mcpPath, // minimist + kebabToCamel converts --mcp-path to mcpPath
         projectRoot: parsed.projectRoot, // --project-root -> projectRoot
     };
 }

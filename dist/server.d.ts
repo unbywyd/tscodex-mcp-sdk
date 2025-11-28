@@ -150,6 +150,31 @@ export declare class McpServer<TConfig extends Record<string, unknown> = Record<
      */
     private registerDefaultConfigTool;
     /**
+     * Validate server name format
+     *
+     * Server name must:
+     * - Start with a Latin letter (a-z, A-Z)
+     * - Contain only Latin letters, numbers, hyphens (-), and underscores (_)
+     * - Not start with a number
+     *
+     * Examples of valid names:
+     * - "my-server"
+     * - "mcp_images"
+     * - "server123"
+     * - "MyServer"
+     *
+     * Examples of invalid names:
+     * - "@tscodex/mcp-images" (contains @ and /)
+     * - "123server" (starts with number)
+     * - "my server" (contains space)
+     * - "my.server" (contains dot)
+     */
+    private validateServerName;
+    /**
+     * Find invalid characters in server name for better error messages
+     */
+    private findInvalidChars;
+    /**
      * Generate resource prefix (ID) from server name or use provided ID
      */
     private generateResourcePrefix;

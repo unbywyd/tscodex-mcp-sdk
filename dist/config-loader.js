@@ -13,13 +13,13 @@ import { parseCliArgs as parseCliArgsBase } from './cli-parser.js';
  * Supports --key value, --key=value, and boolean flags
  */
 function parseCliArgs() {
-    // Parse with minimist - парсит ВСЕ опции в объект автоматически
-    // minimist уже конвертирует kebab-case в camelCase через parseCliArgsBase()
-    // TypeBox схема в loadConfig() отфильтрует неизвестные опции через Value.Cast
+    // Parse with minimist - automatically parses ALL options into object
+    // minimist already converts kebab-case to camelCase via parseCliArgsBase()
+    // TypeBox schema in loadConfig() will filter unknown options via Value.Cast
     const parsed = parseCliArgsBase();
     // Extract config file path if present (remove from result)
     const { config: _config, configFile: _configFile, ...rest } = parsed;
-    // parseCliArgsBase() уже возвращает camelCase ключи, просто возвращаем rest
+    // parseCliArgsBase() already returns camelCase keys, just return rest
     return rest;
 }
 /**

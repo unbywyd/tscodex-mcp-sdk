@@ -36,6 +36,16 @@ npm install @tscodex/mcp-sdk
 
 ## 🚀 Quick Start
 
+### Server Name Validation
+
+Server name must:
+- Start with a Latin letter (a-z, A-Z)
+- Contain only Latin letters, numbers, hyphens (-), and underscores (_)
+- Not start with a number
+
+**Valid examples:** `my-server`, `mcp_images`, `server123`, `MyServer`  
+**Invalid examples:** `@tscodex/mcp-images` (contains @ and /), `123server` (starts with number), `my server` (contains space)
+
 ### Minimal Server
 
 ```typescript
@@ -313,7 +323,8 @@ Main server class.
 ```typescript
 interface McpServerOptions<TConfig, TRoles, TSession> {
   // REQUIRED
-  name: string;                    // Unique server name
+  name: string;                    // Unique server name (must start with Latin letter, 
+                                   // contain only letters, numbers, hyphens, underscores)
   version: string;                 // Version (semver)
   description: string;             // Server description
   
@@ -356,6 +367,7 @@ server.getSession(): TSession | undefined;
 server.getTools(): string[];
 server.getResources(): string[];
 server.getPrompts(): string[];
+server.getMetadata(): ServerMetadata;  // Get server metadata (tools, resources, prompts, config schema)
 
 // Properties
 server.serverId: string;           // Server ID (resource prefix)
@@ -389,6 +401,29 @@ server.on('projectRootChanged', (newRoot: string, previousRoot: string) => {});
 
 The SDK is designed to work seamlessly with Cursor/VSCode Extensions.
 
+### Metadata Mode (`--meta` flag)
+
+SDK supports metadata mode for Extension integration. When started with `--meta` or `--metadata` flag:
+
+- Server outputs only JSON metadata to `stdout` (no logs)
+- All logs are redirected to `stderr`
+- Server exits after outputting metadata (doesn't start HTTP server)
+- Useful for Extension to discover server capabilities without starting the server
+
+**Usage:**
+```bash
+node dist/index.js --meta
+# or
+node dist/index.js --metadata
+```
+
+**Programmatic usage:**
+```typescript
+await server.initialize();
+const metadata = server.getMetadata();
+console.log(JSON.stringify(metadata, null, 2));
+```
+
 ### Environment Variables
 
 Extension automatically passes configuration via environment variables:
@@ -400,15 +435,24 @@ Extension automatically passes configuration via environment variables:
 - `MCP_AUTH_TOKEN` - Authentication token/key (for auth-enabled servers)
 - `MCP_PATH` - MCP endpoint path (default: '/mcp')
 
-**Important:** Only environment variables with `MCP_` prefix are loaded into configuration. This prevents accidental exposure of system environment variables. For example, use `MCP_TIMEOUT=5000` instead of `TIMEOUT=5000`.
+**Fallback Support:** SDK supports fallback to non-prefixed environment variables for server settings:
+- `MCP_HOST` → `HOST` (if `MCP_HOST` is not set)
+- `MCP_PORT` → `PORT` (if `MCP_PORT` is not set)
+- `MCP_PROJECT_ROOT` → `CURSOR_WORKSPACE` → `PROJECT_ROOT` (if `MCP_PROJECT_ROOT` is not set)
+
+**Priority order:** `MCP_*` env vars → non-prefixed env vars → CLI arguments → defaults
+
+**Important:** Only environment variables with `MCP_` prefix are loaded into application configuration (via `loadConfig`). This prevents accidental exposure of system environment variables. For example, use `MCP_TIMEOUT=5000` instead of `TIMEOUT=5000`. However, server settings (host, port, project root) support fallback to non-prefixed variables for convenience.
 
 ### Extension Endpoints
 
 SDK automatically creates endpoints for Extension:
 
 - `GET /health` - Health check with server information
+- `GET /gateway/metadata` - Get server metadata (tools, resources, prompts, config schema)
 - `POST /gateway/config/project-root` - Update project root
-- `GET /gateway/config/current` - Get current configuration (sanitized)
+- `GET /gateway/config/current` - Get current configuration (public config only)
+- `POST /gateway/config` - Update configuration dynamically (deep merge)
 
 ### Configuration Management
 
@@ -500,7 +544,7 @@ const merged = updateConfig(defaultConfig, extensionConfig);
 
 ## 📚 Documentation
 
-- **[Configuration Loading Architecture](./CONFIG_LOADING.md)** - Подробное описание загрузки и слияния конфигурации из различных источников (CLI, ENV, файлы, Extension)
+- **[Configuration Loading Architecture](./CONFIG_LOADING.md)** - Detailed description of configuration loading and merging from various sources (CLI, ENV, files, Extension)
 
 ---
 

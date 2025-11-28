@@ -127,6 +127,22 @@ export class McpServer<
     // Check for --meta flag - SDK handles this completely
     const isMetaMode = process.argv.includes('--meta') || process.argv.includes('--metadata');
 
+    // Redirect console.log to stderr in meta mode to keep stdout clean for JSON metadata
+    if (isMetaMode) {
+      const originalConsoleLog = console.log.bind(console);
+      console.log = (...args: unknown[]) => {
+        const message = args.map(arg => {
+          if (typeof arg === 'string') return arg;
+          try {
+            return JSON.stringify(arg);
+          } catch {
+            return String(arg);
+          }
+        }).join(' ');
+        process.stderr.write(message + '\n');
+      };
+    }
+
     // Validate required fields
     if (!options.name || typeof options.name !== 'string') {
       throw new Error('McpServer: "name" is required and must be a string');
@@ -137,6 +153,9 @@ export class McpServer<
     if (!options.description || typeof options.description !== 'string') {
       throw new Error('McpServer: "description" is required and must be a string');
     }
+
+    // Validate server name format
+    this.validateServerName(options.name);
 
     // Generate or validate resource prefix (ID)
     this.resourcePrefix = this.generateResourcePrefix(options.name, options.id);
@@ -1381,15 +1400,62 @@ export class McpServer<
   }
 
   /**
+   * Validate server name format
+   * 
+   * Server name must:
+   * - Start with a Latin letter (a-z, A-Z)
+   * - Contain only Latin letters, numbers, hyphens (-), and underscores (_)
+   * - Not start with a number
+   * 
+   * Examples of valid names:
+   * - "my-server"
+   * - "mcp_images"
+   * - "server123"
+   * - "MyServer"
+   * 
+   * Examples of invalid names:
+   * - "@tscodex/mcp-images" (contains @ and /)
+   * - "123server" (starts with number)
+   * - "my server" (contains space)
+   * - "my.server" (contains dot)
+   */
+  private validateServerName(name: string): void {
+    // Must start with a Latin letter (a-z, A-Z)
+    // Can contain letters, numbers, hyphens, underscores
+    // Pattern: ^[a-zA-Z][a-zA-Z0-9_-]*$
+    if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(name)) {
+      throw new Error(
+        `Invalid server name "${name}". ` +
+        `Server name must start with a Latin letter and contain only Latin letters, numbers, hyphens (-), and underscores (_). ` +
+        `Examples: "my-server", "mcp_images", "server123". ` +
+        `Invalid characters found: ${this.findInvalidChars(name)}`
+      );
+    }
+  }
+
+  /**
+   * Find invalid characters in server name for better error messages
+   */
+  private findInvalidChars(name: string): string {
+    const invalidChars = name.match(/[^a-zA-Z0-9_-]/g);
+    if (!invalidChars || invalidChars.length === 0) {
+      return 'none (check if name starts with a letter)';
+    }
+    const unique = [...new Set(invalidChars)];
+    return unique.map(c => `"${c}"`).join(', ');
+  }
+
+  /**
    * Generate resource prefix (ID) from server name or use provided ID
    */
   private generateResourcePrefix(name: string, providedId?: string): string {
     if (providedId) {
-      // Validate provided ID
-      if (!/^[a-z0-9-]+$/.test(providedId)) {
+      // Validate provided ID format (must start with letter, lowercase only for consistency)
+      if (!/^[a-z][a-z0-9_-]*$/.test(providedId)) {
         throw new Error(
           `Invalid server ID "${providedId}". ` +
-          `ID must be a slug: lowercase English letters, numbers, and hyphens only.`
+          `ID must start with a lowercase Latin letter and contain only lowercase letters, numbers, hyphens (-), and underscores (_). ` +
+          `Examples: "my-server", "mcp_images", "server123".`
         );
       }
       return providedId;
@@ -1682,8 +1748,8 @@ export class McpServer<
         await this.initialize();
       }
       const metadata = this.getMetadata();
-      // Output only JSON, no logs
-      console.log(JSON.stringify(metadata, null, 2));
+      // Output only JSON to stdout, no logs
+      process.stdout.write(JSON.stringify(metadata, null, 2) + '\n');
       process.exit(0);
     }
 
