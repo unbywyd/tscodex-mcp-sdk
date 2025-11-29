@@ -16,5 +16,5 @@ export { validateConfig, updateConfig } from './config.js';
 export { loadConfig } from './config-loader.js';
 export { safePath, isPathSafe, sanitizeFilename, RateLimiter, validateRequestSize, filterSecrets, filterMcpConfig, filterMcpPublicConfig } from './security.js';
 // Export version
-export const SDK_VERSION = '0.2.0';
+export const SDK_VERSION = '0.1.0';
 //# sourceMappingURL=index.js.map
