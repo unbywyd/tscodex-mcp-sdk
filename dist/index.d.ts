@@ -14,5 +14,5 @@ export { createHttpTransport, TransportManager, type CorsOptions } from './trans
 export { validateConfig, updateConfig } from './config.js';
 export { loadConfig, type ConfigLoaderOptions } from './config-loader.js';
 export { safePath, isPathSafe, sanitizeFilename, RateLimiter, validateRequestSize, filterSecrets, filterMcpConfig, filterMcpPublicConfig, type RateLimitConfig } from './security.js';
-export declare const SDK_VERSION = "0.1.0";
+export declare const SDK_VERSION = "0.0.1";
 //# sourceMappingURL=index.d.ts.map
