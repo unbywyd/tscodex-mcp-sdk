@@ -10,6 +10,8 @@
     "./types": "./dist/types.js",
     "./extension": "./dist/extension.js"
   },
+  "private": false,
+  "preferGlobal": false,
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts"
