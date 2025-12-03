@@ -11,7 +11,7 @@ export { Type } from '@sinclair/typebox';
 // Core exports
 export { McpServer } from './server.js';
 // Utilities
-export { createHttpTransport, TransportManager } from './transport.js';
+export { createHttpTransport, TransportManager, getRequestContext, extractRequestContext, requestContextStorage } from './transport.js';
 export { validateConfig, updateConfig } from './config.js';
 export { loadConfig } from './config-loader.js';
 export { safePath, isPathSafe, sanitizeFilename, RateLimiter, validateRequestSize, filterSecrets, filterMcpConfig, filterMcpPublicConfig } from './security.js';

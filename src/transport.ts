@@ -1,13 +1,44 @@
 /**
  * HTTP Transport utilities for MCP SDK
- * 
+ *
  * Wrapper around MCP SDK transport for easier setup
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { AsyncLocalStorage } from 'async_hooks';
 import type { IncomingMessage, ServerResponse } from 'http';
-import type { Logger } from './types.js';
+import type { Logger, RequestContext } from './types.js';
+
+/**
+ * AsyncLocalStorage for per-request context
+ *
+ * This allows us to pass HTTP headers (like X-MCP-Project-Root)
+ * through the async call stack to MCP handlers, even though
+ * the official MCP SDK doesn't support custom context in handlers.
+ */
+export const requestContextStorage = new AsyncLocalStorage<RequestContext>();
+
+/**
+ * Get current request context from AsyncLocalStorage
+ * Returns undefined if called outside of a request context
+ */
+export function getRequestContext(): RequestContext | undefined {
+  return requestContextStorage.getStore();
+}
+
+/**
+ * Extract RequestContext from HTTP headers
+ */
+export function extractRequestContext(req: IncomingMessage): RequestContext {
+  const projectRoot = req.headers['x-mcp-project-root'];
+  const workspaceId = req.headers['x-mcp-workspace-id'];
+
+  return {
+    projectRoot: typeof projectRoot === 'string' ? projectRoot : undefined,
+    workspaceId: typeof workspaceId === 'string' ? workspaceId : undefined,
+  };
+}
 
 /**
  * Simple HTTP transport (request-response, no SSE)
@@ -39,11 +70,11 @@ export function createSimpleHttpTransport(
     async start() {
       httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
         const pathname = req.url ? req.url.split('?')[0] : '';
-        
+
         if (logger) {
           logger.debug(`SimpleHTTP: method=${req.method}, pathname=${pathname}, mcpPath=${mcpPath}`);
         }
-        
+
         // Only handle POST requests to the specified path
         // Don't send 404 here - let other handlers (extension endpoints) process the request
         if (req.method !== 'POST' || pathname !== mcpPath) {
@@ -54,86 +85,97 @@ export function createSimpleHttpTransport(
           // Just return without doing anything
           return;
         }
-        
+
         if (logger) {
           logger.debug(`SimpleHTTP: handling MCP request on ${mcpPath}`);
         }
-        
-        try {
-          // Parse request body
-          const body = await parseRequestBody<{ method?: string; id?: any }>(req);
-          
-          const method = body.method || 'unknown';
-          
-          // Check if this is a notification
-          const hasId = body.hasOwnProperty('id') && body.id !== null && body.id !== undefined;
-          const isNotification = !hasId || (typeof method === 'string' && method.startsWith('notifications/'));
-          
-          // For notifications, send immediate empty response
-          if (isNotification) {
-            if (logger) {
-              logger.debug(`SimpleHTTP: notification ${method}`);
-            }
-            
-            // Process the notification asynchronously
-            if (transport.onmessage) {
-              transport.onmessage(body);
-            }
-            
-            // Send immediate empty response for notifications
-            res.statusCode = 204;
-            res.end();
-            return;
-          }
-          
-          // For regular requests, store the response object
-          if (logger) {
-            logger.debug(`SimpleHTTP: request ${method}`);
-          }
-          currentResponse = res;
-          
-          // Set a timeout to prevent hanging connections (60 seconds)
-          const timeoutMs = 60000;
-          responseTimeout = setTimeout(() => {
-            if (logger) {
-              logger.warn(`SimpleHTTP: timeout for ${method}`);
-            }
-            if (currentResponse) {
-              res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({
-                jsonrpc: '2.0',
-                error: {
-                  code: -32603,
-                  message: 'Request timeout',
-                  data: `Method ${method} did not respond within ${timeoutMs / 1000} seconds`
-                },
-                id: body.id || null
-              }));
-              currentResponse = null;
-            }
-          }, timeoutMs);
-          
-          // Pass the message to the MCP server
-          if (transport.onmessage) {
-            transport.onmessage(body as any);
-          }
-        } catch (error) {
-          if (logger) {
-            logger.error('SimpleHTTP: Error handling request', error);
-          }
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            error: {
-              code: -32603,
-              message: 'Internal error',
-              data: error instanceof Error ? error.message : String(error)
-            },
-            id: null
-          }));
+
+        // Extract request context from headers for per-request projectRoot/workspaceId
+        const reqContext = extractRequestContext(req);
+
+        if (logger && (reqContext.projectRoot || reqContext.workspaceId)) {
+          logger.debug(`SimpleHTTP: request context - projectRoot=${reqContext.projectRoot}, workspaceId=${reqContext.workspaceId}`);
         }
+
+        // Run the request handler within AsyncLocalStorage context
+        // This allows createContext() in server.ts to access per-request headers
+        await requestContextStorage.run(reqContext, async () => {
+          try {
+            // Parse request body
+            const body = await parseRequestBody<{ method?: string; id?: any }>(req);
+
+            const method = body.method || 'unknown';
+
+            // Check if this is a notification
+            const hasId = body.hasOwnProperty('id') && body.id !== null && body.id !== undefined;
+            const isNotification = !hasId || (typeof method === 'string' && method.startsWith('notifications/'));
+
+            // For notifications, send immediate empty response
+            if (isNotification) {
+              if (logger) {
+                logger.debug(`SimpleHTTP: notification ${method}`);
+              }
+
+              // Process the notification asynchronously
+              if (transport.onmessage) {
+                transport.onmessage(body);
+              }
+
+              // Send immediate empty response for notifications
+              res.statusCode = 204;
+              res.end();
+              return;
+            }
+
+            // For regular requests, store the response object
+            if (logger) {
+              logger.debug(`SimpleHTTP: request ${method}`);
+            }
+            currentResponse = res;
+
+            // Set a timeout to prevent hanging connections (60 seconds)
+            const timeoutMs = 60000;
+            responseTimeout = setTimeout(() => {
+              if (logger) {
+                logger.warn(`SimpleHTTP: timeout for ${method}`);
+              }
+              if (currentResponse) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  jsonrpc: '2.0',
+                  error: {
+                    code: -32603,
+                    message: 'Request timeout',
+                    data: `Method ${method} did not respond within ${timeoutMs / 1000} seconds`
+                  },
+                  id: body.id || null
+                }));
+                currentResponse = null;
+              }
+            }, timeoutMs);
+
+            // Pass the message to the MCP server
+            if (transport.onmessage) {
+              transport.onmessage(body as any);
+            }
+          } catch (error) {
+            if (logger) {
+              logger.error('SimpleHTTP: Error handling request', error);
+            }
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: {
+                code: -32603,
+                message: 'Internal error',
+                data: error instanceof Error ? error.message : String(error)
+              },
+              id: null
+            }));
+          }
+        });
       });
     },
     
@@ -393,7 +435,8 @@ export function getCorsHeaders(corsOptions?: CorsOptions, requestOrigin?: string
     // Default permissive CORS (allow all)
     headers['Access-Control-Allow-Origin'] = '*';
     headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
+    // Include MCP SDK headers for per-request context (X-MCP-Project-Root, X-MCP-Workspace-Id)
+    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-MCP-Project-Root, X-MCP-Workspace-Id, X-Project-Root, X-Workspace-Id, X-Server-Id';
     return headers;
   }
 

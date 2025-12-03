@@ -257,27 +257,41 @@ export interface ToolContext<
   TConfig extends Record<string, unknown> = Record<string, unknown>,
   TSession extends Record<string, unknown> = Record<string, unknown>
 > {
-  /** 
+  /**
    * Public server configuration (settings, no secrets).
    * All configuration is public and safe to expose.
    */
   config: TConfig;
-  
-  /** 
+
+  /**
    * Secrets storage - access secrets via get() method.
    * Secrets are extracted from ENV variables with SECRET_ prefix.
-   * 
+   *
    * @example
    * const apiKey = context.secrets.get('SECRET_PEXELS_API_KEY');
    */
   secrets: Map<string, string>;
-  
-  /** Project root (workspace) from Extension */
+
+  /**
+   * Project root (workspace) path.
+   *
+   * Priority:
+   * 1. Per-request X-MCP-Project-Root header (from MCP Gateway)
+   * 2. Server-level MCP_PROJECT_ROOT environment variable
+   * 3. undefined if not set
+   */
   projectRoot?: string;
-  
+
+  /**
+   * Workspace ID from request header (X-MCP-Workspace-Id)
+   * Only present when request comes through MCP Gateway with workspace context.
+   * Useful for workspace-specific logic or logging.
+   */
+  workspaceId?: string;
+
   /** Server instance for accessing other methods (if needed) */
   server: McpServer<TConfig, any, TSession>;
-  
+
   /** Current user session (if authentication is enabled, may be undefined for public tools) */
   session?: TSession;
 }
@@ -339,27 +353,40 @@ export interface ResourceContext<
   TConfig extends Record<string, unknown> = Record<string, unknown>,
   TSession extends Record<string, unknown> = Record<string, unknown>
 > {
-  /** 
+  /**
    * Public server configuration (settings, no secrets).
    * All configuration is public and safe to expose.
    */
   config: TConfig;
-  
-  /** 
+
+  /**
    * Secrets storage - access secrets via get() method.
    * Secrets are extracted from ENV variables with SECRET_ prefix.
-   * 
+   *
    * @example
    * const apiKey = context.secrets.get('SECRET_PEXELS_API_KEY');
    */
   secrets: Map<string, string>;
-  
-  /** Project root (workspace) from Extension */
+
+  /**
+   * Project root (workspace) path.
+   *
+   * Priority:
+   * 1. Per-request X-MCP-Project-Root header (from MCP Gateway)
+   * 2. Server-level MCP_PROJECT_ROOT environment variable
+   * 3. undefined if not set
+   */
   projectRoot?: string;
-  
+
+  /**
+   * Workspace ID from request header (X-MCP-Workspace-Id)
+   * Only present when request comes through MCP Gateway with workspace context.
+   */
+  workspaceId?: string;
+
   /** Server instance for accessing other methods (if needed) */
   server: McpServer<TConfig, any, TSession>;
-  
+
   /** Current user session (if authentication is enabled, may be undefined for public resources) */
   session?: TSession;
 }
@@ -421,27 +448,40 @@ export interface PromptContext<
   TConfig extends Record<string, unknown> = Record<string, unknown>,
   TSession extends Record<string, unknown> = Record<string, unknown>
 > {
-  /** 
+  /**
    * Public server configuration (settings, no secrets).
    * All configuration is public and safe to expose.
    */
   config: TConfig;
-  
-  /** 
+
+  /**
    * Secrets storage - access secrets via get() method.
    * Secrets are extracted from ENV variables with SECRET_ prefix.
-   * 
+   *
    * @example
    * const apiKey = context.secrets.get('SECRET_PEXELS_API_KEY');
    */
   secrets: Map<string, string>;
-  
-  /** Project root (workspace) from Extension */
+
+  /**
+   * Project root (workspace) path.
+   *
+   * Priority:
+   * 1. Per-request X-MCP-Project-Root header (from MCP Gateway)
+   * 2. Server-level MCP_PROJECT_ROOT environment variable
+   * 3. undefined if not set
+   */
   projectRoot?: string;
-  
+
+  /**
+   * Workspace ID from request header (X-MCP-Workspace-Id)
+   * Only present when request comes through MCP Gateway with workspace context.
+   */
+  workspaceId?: string;
+
   /** Server instance for accessing other methods (if needed) */
   server: McpServer<TConfig, any, TSession>;
-  
+
   /** Current user session (if authentication is enabled, may be undefined for public prompts) */
   session?: TSession;
 }
@@ -467,6 +507,31 @@ export interface Logger {
   error(message: string, ...args: unknown[]): void;
   warn(message: string, ...args: unknown[]): void;
   debug(message: string, ...args: unknown[]): void;
+}
+
+/**
+ * Per-request context extracted from HTTP headers
+ *
+ * This allows MCP Gateway to pass workspace-specific information
+ * with each request, enabling proper project root resolution
+ * when multiple workspaces share a single MCP server process.
+ *
+ * Headers:
+ * - X-MCP-Project-Root: Workspace project root path
+ * - X-MCP-Workspace-Id: Workspace identifier
+ */
+export interface RequestContext {
+  /**
+   * Project root from request header (X-MCP-Project-Root)
+   * Takes priority over server-level projectRoot when present
+   */
+  projectRoot?: string;
+
+  /**
+   * Workspace ID from request header (X-MCP-Workspace-Id)
+   * Identifies which workspace made the request
+   */
+  workspaceId?: string;
 }
 
 /**

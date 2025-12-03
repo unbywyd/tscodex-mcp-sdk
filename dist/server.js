@@ -16,7 +16,7 @@ import { EventEmitter } from 'events';
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import { validateConfig, updateConfig } from './config.js';
-import { parseRequestBody } from './transport.js';
+import { parseRequestBody, getRequestContext } from './transport.js';
 import { createSimpleHttpTransport } from './transport.js';
 import { RateLimiter, validateRequestSize } from './security.js';
 import { parseServerCliArgs } from './cli-parser.js';
@@ -850,10 +850,17 @@ export class McpServer extends EventEmitter {
      * @returns Context object with public config and secrets storage
      */
     createContext() {
+        // Get per-request context from AsyncLocalStorage (set by transport)
+        // This allows MCP Gateway to pass workspace-specific projectRoot via headers
+        const requestContext = getRequestContext();
         return {
             config: this.config, // Public configuration (no secrets)
             secrets: this.secrets, // Secrets storage (Map<string, string>)
-            projectRoot: this.projectRoot,
+            // Per-request projectRoot (from X-MCP-Project-Root header) takes priority
+            // over server-level projectRoot (from MCP_PROJECT_ROOT env var)
+            projectRoot: requestContext?.projectRoot || this.projectRoot,
+            // Workspace ID from X-MCP-Workspace-Id header (only when going through Gateway)
+            workspaceId: requestContext?.workspaceId,
             server: this,
             session: this.session
         };

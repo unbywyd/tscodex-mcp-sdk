@@ -4,8 +4,26 @@
  * Wrapper around MCP SDK transport for easier setup
  */
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { AsyncLocalStorage } from 'async_hooks';
 import type { IncomingMessage, ServerResponse } from 'http';
-import type { Logger } from './types.js';
+import type { Logger, RequestContext } from './types.js';
+/**
+ * AsyncLocalStorage for per-request context
+ *
+ * This allows us to pass HTTP headers (like X-MCP-Project-Root)
+ * through the async call stack to MCP handlers, even though
+ * the official MCP SDK doesn't support custom context in handlers.
+ */
+export declare const requestContextStorage: AsyncLocalStorage<RequestContext>;
+/**
+ * Get current request context from AsyncLocalStorage
+ * Returns undefined if called outside of a request context
+ */
+export declare function getRequestContext(): RequestContext | undefined;
+/**
+ * Extract RequestContext from HTTP headers
+ */
+export declare function extractRequestContext(req: IncomingMessage): RequestContext;
 /**
  * Simple HTTP transport (request-response, no SSE)
  * Compatible with Cursor and other MCP clients that expect standard JSON-RPC over HTTP POST

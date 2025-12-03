@@ -42,7 +42,7 @@ import type {
   ErrorHandlerContext
 } from './types.js';
 import { validateConfig, updateConfig } from './config.js';
-import { createHttpTransport, parseRequestBody, sendJsonResponse } from './transport.js';
+import { createHttpTransport, parseRequestBody, sendJsonResponse, getRequestContext } from './transport.js';
 import type { HealthResponse, UpdateProjectRootRequest, UpdateProjectRootResponse, ServerMetadata } from './extension.js';
 import { createSimpleHttpTransport } from './transport.js';
 import { RateLimiter, validateRequestSize, filterMcpPublicConfig, type RateLimitConfig } from './security.js';
@@ -1033,10 +1033,18 @@ export class McpServer<
    * @returns Context object with public config and secrets storage
    */
   private createContext(): ToolContext<TConfig, TSession> {
+    // Get per-request context from AsyncLocalStorage (set by transport)
+    // This allows MCP Gateway to pass workspace-specific projectRoot via headers
+    const requestContext = getRequestContext();
+
     return {
       config: this.config, // Public configuration (no secrets)
       secrets: this.secrets, // Secrets storage (Map<string, string>)
-      projectRoot: this.projectRoot,
+      // Per-request projectRoot (from X-MCP-Project-Root header) takes priority
+      // over server-level projectRoot (from MCP_PROJECT_ROOT env var)
+      projectRoot: requestContext?.projectRoot || this.projectRoot,
+      // Workspace ID from X-MCP-Workspace-Id header (only when going through Gateway)
+      workspaceId: requestContext?.workspaceId,
       server: this,
       session: this.session
     };

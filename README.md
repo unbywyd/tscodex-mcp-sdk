@@ -503,6 +503,95 @@ This design ensures that:
 
 ---
 
+## 🔀 Per-Request Context (Multi-Workspace Support)
+
+When multiple workspaces share a single MCP server process, the SDK supports **per-request context** via HTTP headers. This allows each request to have its own `projectRoot` and `workspaceId`.
+
+### How It Works
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Workspace A   │     │   MCP Gateway   │     │   MCP Server    │
+│  /projects/foo  │────▶│  (Proxy Layer)  │────▶│   (Shared)      │
+└─────────────────┘     │                 │     │                 │
+                        │  Adds headers:  │     │  Reads headers  │
+┌─────────────────┐     │  X-MCP-Project- │     │  via AsyncLocal │
+│   Workspace B   │────▶│    Root         │     │  Storage        │
+│  /projects/bar  │     │  X-MCP-Workspace│     │                 │
+└─────────────────┘     │    -Id          │     │                 │
+                        └─────────────────┘     └─────────────────┘
+```
+
+### HTTP Headers
+
+The SDK recognizes these headers for per-request context:
+
+| Header | Description | Priority |
+|--------|-------------|----------|
+| `X-MCP-Project-Root` | Workspace project root path | Overrides `MCP_PROJECT_ROOT` env |
+| `X-MCP-Workspace-Id` | Workspace identifier (optional) | Informational |
+
+### Context Priority
+
+`projectRoot` is resolved with the following priority:
+
+1. **Per-request header** (`X-MCP-Project-Root`) - highest priority
+2. **Server-level environment** (`MCP_PROJECT_ROOT`)
+3. **undefined** if neither is set
+
+### Usage in Handlers
+
+```typescript
+server.addTool({
+  name: 'list-files',
+  schema: Type.Object({}),
+  handler: async (params, context) => {
+    // projectRoot automatically reflects per-request header
+    // or falls back to server-level MCP_PROJECT_ROOT
+    const root = context.projectRoot;
+
+    // workspaceId is available for logging/caching (optional)
+    const wsId = context.workspaceId;
+
+    if (!root) {
+      return { content: [{ type: 'text', text: 'No project root configured' }] };
+    }
+
+    // Files are resolved relative to the correct workspace
+    const files = await fs.readdir(root);
+    return {
+      content: [{ type: 'text', text: files.join('\n') }]
+    };
+  }
+});
+```
+
+### Implementation Details
+
+The SDK uses Node.js `AsyncLocalStorage` to propagate request context through the async call stack. This allows handlers to access per-request headers even though the official MCP SDK doesn't support custom context in handlers.
+
+```typescript
+// Available exports for advanced usage
+import {
+  getRequestContext,      // Get current request context
+  extractRequestContext,  // Extract context from HTTP request
+  requestContextStorage   // AsyncLocalStorage instance
+} from '@tscodex/mcp-sdk';
+
+// In custom middleware or transport
+const reqContext = extractRequestContext(httpRequest);
+// reqContext = { projectRoot?: string, workspaceId?: string }
+```
+
+### Backward Compatibility
+
+- Servers that don't receive these headers continue to work normally
+- `projectRoot` falls back to `MCP_PROJECT_ROOT` environment variable
+- `workspaceId` is `undefined` when not provided
+- Existing plugins don't need any changes
+
+---
+
 ## 🔧 Utilities
 
 ### Security Utilities

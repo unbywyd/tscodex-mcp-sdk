@@ -12,8 +12,8 @@ export { Type, Static } from '@sinclair/typebox';
 
 // Core exports
 export { McpServer } from './server.js';
-export type { 
-  McpServerOptions, 
+export type {
+  McpServerOptions,
   Schema,
   ToolConfig,
   ResourceConfig,
@@ -34,7 +34,8 @@ export type {
   ErrorHandlerContext,
   ServerHttpOptions,
   ServerSecurityOptions,
-  ServerHandlerOptions
+  ServerHandlerOptions,
+  RequestContext
 } from './types.js';
 
 // Extension types
@@ -47,7 +48,14 @@ export type {
 } from './extension.js';
 
 // Utilities
-export { createHttpTransport, TransportManager, type CorsOptions } from './transport.js';
+export {
+  createHttpTransport,
+  TransportManager,
+  getRequestContext,
+  extractRequestContext,
+  requestContextStorage,
+  type CorsOptions
+} from './transport.js';
 export { validateConfig, updateConfig } from './config.js';
 export { loadConfig, type ConfigLoaderOptions } from './config-loader.js';
 export { 
