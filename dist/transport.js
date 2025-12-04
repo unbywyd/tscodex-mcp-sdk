@@ -22,13 +22,28 @@ export function getRequestContext() {
 }
 /**
  * Extract RequestContext from HTTP headers
+ *
+ * Supported headers:
+ * - X-MCP-Project-Root: Workspace project root path
+ * - X-MCP-Workspace-Id: Workspace identifier
+ * - X-MCP-CTX-*: Custom context headers (e.g., X-MCP-CTX-Project-Id -> contextHeaders['project-id'])
  */
 export function extractRequestContext(req) {
     const projectRoot = req.headers['x-mcp-project-root'];
     const workspaceId = req.headers['x-mcp-workspace-id'];
+    // Collect all X-MCP-CTX-* headers into contextHeaders
+    const contextHeaders = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+        if (key.toLowerCase().startsWith('x-mcp-ctx-') && typeof value === 'string') {
+            // x-mcp-ctx-project-id -> project-id (keep lowercase)
+            const headerName = key.slice(10); // remove 'x-mcp-ctx-'
+            contextHeaders[headerName] = value;
+        }
+    }
     return {
         projectRoot: typeof projectRoot === 'string' ? projectRoot : undefined,
         workspaceId: typeof workspaceId === 'string' ? workspaceId : undefined,
+        contextHeaders: Object.keys(contextHeaders).length > 0 ? contextHeaders : undefined,
     };
 }
 /**
@@ -65,8 +80,8 @@ export function createSimpleHttpTransport(mcpPath, httpServer, logger) {
                 }
                 // Extract request context from headers for per-request projectRoot/workspaceId
                 const reqContext = extractRequestContext(req);
-                if (logger && (reqContext.projectRoot || reqContext.workspaceId)) {
-                    logger.debug(`SimpleHTTP: request context - projectRoot=${reqContext.projectRoot}, workspaceId=${reqContext.workspaceId}`);
+                if (logger && (reqContext.projectRoot || reqContext.workspaceId || reqContext.contextHeaders)) {
+                    logger.debug(`SimpleHTTP: request context - projectRoot=${reqContext.projectRoot}, workspaceId=${reqContext.workspaceId}, contextHeaders=${reqContext.contextHeaders ? Object.keys(reqContext.contextHeaders).length : 0}`);
                 }
                 // Run the request handler within AsyncLocalStorage context
                 // This allows createContext() in server.ts to access per-request headers
@@ -349,8 +364,8 @@ export function getCorsHeaders(corsOptions, requestOrigin) {
         // Default permissive CORS (allow all)
         headers['Access-Control-Allow-Origin'] = '*';
         headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-        // Include MCP SDK headers for per-request context (X-MCP-Project-Root, X-MCP-Workspace-Id)
-        headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-MCP-Project-Root, X-MCP-Workspace-Id, X-Project-Root, X-Workspace-Id, X-Server-Id';
+        // Allow all headers including custom X-MCP-CTX-* context headers
+        headers['Access-Control-Allow-Headers'] = '*';
         return headers;
     }
     // Handle origin

@@ -98,6 +98,7 @@ export interface McpServerOptions<TConfig extends Record<string, unknown> = Reco
     handlerOptions?: ServerHandlerOptions;
     errorHandler?: ErrorHandler<TConfig, TSession>;
     logger?: Logger;
+    contextHeaders?: string[];
 }
 /**
  * HTTP Server configuration options
@@ -196,6 +197,12 @@ export interface ToolContext<TConfig extends Record<string, unknown> = Record<st
      * Useful for workspace-specific logic or logging.
      */
     workspaceId?: string;
+    /**
+     * Custom context headers from request (X-MCP-CTX-*)
+     * Contains values for headers declared in server's contextHeaders option.
+     * Key is header name without prefix (e.g., 'Project-Id' from 'X-MCP-CTX-Project-Id')
+     */
+    contextHeaders?: Record<string, string>;
     /** Server instance for accessing other methods (if needed) */
     server: McpServer<TConfig, any, TSession>;
     /** Current user session (if authentication is enabled, may be undefined for public tools) */
@@ -269,6 +276,11 @@ export interface ResourceContext<TConfig extends Record<string, unknown> = Recor
      * Only present when request comes through MCP Gateway with workspace context.
      */
     workspaceId?: string;
+    /**
+     * Custom context headers from request (X-MCP-CTX-*)
+     * Contains values for headers declared in server's contextHeaders option.
+     */
+    contextHeaders?: Record<string, string>;
     /** Server instance for accessing other methods (if needed) */
     server: McpServer<TConfig, any, TSession>;
     /** Current user session (if authentication is enabled, may be undefined for public resources) */
@@ -340,6 +352,11 @@ export interface PromptContext<TConfig extends Record<string, unknown> = Record<
      * Only present when request comes through MCP Gateway with workspace context.
      */
     workspaceId?: string;
+    /**
+     * Custom context headers from request (X-MCP-CTX-*)
+     * Contains values for headers declared in server's contextHeaders option.
+     */
+    contextHeaders?: Record<string, string>;
     /** Server instance for accessing other methods (if needed) */
     server: McpServer<TConfig, any, TSession>;
     /** Current user session (if authentication is enabled, may be undefined for public prompts) */
@@ -388,6 +405,12 @@ export interface RequestContext {
      * Identifies which workspace made the request
      */
     workspaceId?: string;
+    /**
+     * Custom context headers from request (X-MCP-CTX-*)
+     * Key is header name without prefix (e.g., 'Project-Id' from 'X-MCP-CTX-Project-Id')
+     * Value is the header value as string
+     */
+    contextHeaders?: Record<string, string>;
 }
 /**
  * Error handler context - information about where the error occurred

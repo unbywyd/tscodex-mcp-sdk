@@ -592,6 +592,98 @@ const reqContext = extractRequestContext(httpRequest);
 
 ---
 
+## 🏷️ Custom Context Headers
+
+SDK allows servers to declare custom context headers that are passed with each request. This enables workspace-specific data (like project IDs, API keys, etc.) to be sent dynamically without modifying the server configuration.
+
+### Declaring Context Headers
+
+```typescript
+const server = new McpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  description: 'Server with custom context headers',
+  // Declare which headers this server accepts
+  contextHeaders: ['project-id', 'api-key', 'region']
+});
+```
+
+### How It Works
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   MCP Manager   │     │   MCP Gateway   │     │   MCP Server    │
+│  UI shows form  │     │                 │     │                 │
+│  for headers:   │────▶│  Adds headers:  │────▶│  Receives in    │
+│  [project-id]   │     │  X-MCP-CTX-     │     │  context.       │
+│  [api-key]      │     │    project-id   │     │  contextHeaders │
+│  [region]       │     │  X-MCP-CTX-     │     │                 │
+│                 │     │    api-key      │     │                 │
+│                 │     │  X-MCP-CTX-     │     │                 │
+│                 │     │    region       │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+### Using in Handlers
+
+```typescript
+server.addTool({
+  name: 'get-project-data',
+  description: 'Fetch data for specific project',
+  schema: Type.Object({}),
+  handler: async (params, context) => {
+    // Access context headers from the request
+    const projectId = context.contextHeaders?.['project-id'];
+    const apiKey = context.contextHeaders?.['api-key'];
+    const region = context.contextHeaders?.['region'] || 'us-east-1';
+
+    if (!projectId) {
+      return {
+        content: [{
+          type: 'text',
+          text: 'Error: project-id header is required. Configure it in workspace settings.'
+        }]
+      };
+    }
+
+    // Use the values for your business logic
+    const data = await fetchProjectData(projectId, apiKey, region);
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(data) }]
+    };
+  }
+});
+```
+
+### HTTP Headers Format
+
+Context headers are passed with the `X-MCP-CTX-` prefix:
+
+| Declared Header | HTTP Header | `context.contextHeaders` Key |
+|-----------------|-------------|------------------------------|
+| `project-id` | `X-MCP-CTX-project-id` | `project-id` |
+| `api-key` | `X-MCP-CTX-api-key` | `api-key` |
+| `Region` | `X-MCP-CTX-Region` | `region` (lowercase) |
+
+### Metadata Exposure
+
+Declared context headers are included in server metadata (`getMetadata()`), allowing MCP Manager to automatically show configuration UI for each workspace:
+
+```typescript
+const metadata = server.getMetadata();
+// metadata.contextHeaders = ['project-id', 'api-key', 'region']
+```
+
+### Use Cases
+
+- **Multi-tenant applications**: Pass tenant ID per workspace
+- **External service integration**: Pass project/account IDs to map workspaces to external services
+- **Region selection**: Allow different regions per workspace
+- **API key override**: Different API keys for different workspaces
+
+---
+
 ## 🔧 Utilities
 
 ### Security Utilities

@@ -22,6 +22,11 @@ export declare const requestContextStorage: AsyncLocalStorage<RequestContext>;
 export declare function getRequestContext(): RequestContext | undefined;
 /**
  * Extract RequestContext from HTTP headers
+ *
+ * Supported headers:
+ * - X-MCP-Project-Root: Workspace project root path
+ * - X-MCP-Workspace-Id: Workspace identifier
+ * - X-MCP-CTX-*: Custom context headers (e.g., X-MCP-CTX-Project-Id -> contextHeaders['project-id'])
  */
 export declare function extractRequestContext(req: IncomingMessage): RequestContext;
 /**

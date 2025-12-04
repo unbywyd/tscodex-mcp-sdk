@@ -1,6 +1,6 @@
 {
   "name": "@tscodex/mcp-sdk",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "SDK for creating MCP servers with Extension support",
   "type": "module",
   "main": "./dist/index.js",

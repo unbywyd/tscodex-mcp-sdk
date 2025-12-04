@@ -123,5 +123,11 @@ export interface ServerMetadata {
         roles?: string[];
     };
     projectRoot?: string;
+    /**
+     * Custom context headers that server accepts per-request.
+     * MCP Manager UI will show input fields for these headers in workspace settings.
+     * Values are passed via X-MCP-CTX-{header-name} headers with each request.
+     */
+    contextHeaders?: string[];
 }
 //# sourceMappingURL=extension.d.ts.map

@@ -166,6 +166,12 @@ export interface McpServerOptions<
 
   // Logging (OPTIONAL)
   logger?: Logger;                  // Custom logger
+
+  // Context Headers (OPTIONAL)
+  // Server declares which custom headers it can receive per-request
+  // MCP Manager UI will show input fields for these headers in workspace settings
+  // Values are passed via X-MCP-CTX-{header-name} headers with each request
+  contextHeaders?: string[];        // Array of header names server accepts (e.g., ['Project-Id', 'Api-Key'])
 }
 
 /**
@@ -289,6 +295,13 @@ export interface ToolContext<
    */
   workspaceId?: string;
 
+  /**
+   * Custom context headers from request (X-MCP-CTX-*)
+   * Contains values for headers declared in server's contextHeaders option.
+   * Key is header name without prefix (e.g., 'Project-Id' from 'X-MCP-CTX-Project-Id')
+   */
+  contextHeaders?: Record<string, string>;
+
   /** Server instance for accessing other methods (if needed) */
   server: McpServer<TConfig, any, TSession>;
 
@@ -383,6 +396,12 @@ export interface ResourceContext<
    * Only present when request comes through MCP Gateway with workspace context.
    */
   workspaceId?: string;
+
+  /**
+   * Custom context headers from request (X-MCP-CTX-*)
+   * Contains values for headers declared in server's contextHeaders option.
+   */
+  contextHeaders?: Record<string, string>;
 
   /** Server instance for accessing other methods (if needed) */
   server: McpServer<TConfig, any, TSession>;
@@ -479,6 +498,12 @@ export interface PromptContext<
    */
   workspaceId?: string;
 
+  /**
+   * Custom context headers from request (X-MCP-CTX-*)
+   * Contains values for headers declared in server's contextHeaders option.
+   */
+  contextHeaders?: Record<string, string>;
+
   /** Server instance for accessing other methods (if needed) */
   server: McpServer<TConfig, any, TSession>;
 
@@ -532,6 +557,13 @@ export interface RequestContext {
    * Identifies which workspace made the request
    */
   workspaceId?: string;
+
+  /**
+   * Custom context headers from request (X-MCP-CTX-*)
+   * Key is header name without prefix (e.g., 'Project-Id' from 'X-MCP-CTX-Project-Id')
+   * Value is the header value as string
+   */
+  contextHeaders?: Record<string, string>;
 }
 
 /**

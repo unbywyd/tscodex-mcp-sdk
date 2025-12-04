@@ -861,6 +861,8 @@ export class McpServer extends EventEmitter {
             projectRoot: requestContext?.projectRoot || this.projectRoot,
             // Workspace ID from X-MCP-Workspace-Id header (only when going through Gateway)
             workspaceId: requestContext?.workspaceId,
+            // Custom context headers from X-MCP-CTX-* headers
+            contextHeaders: requestContext?.contextHeaders,
             server: this,
             session: this.session
         };
@@ -1718,7 +1720,8 @@ export class McpServer extends EventEmitter {
                 hasSession: !!this.session,
                 roles: Object.keys(this.options.auth.roles)
             } : undefined,
-            projectRoot: this.projectRoot
+            projectRoot: this.projectRoot,
+            contextHeaders: this.options.contextHeaders
         };
         return metadata;
     }
