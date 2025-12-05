@@ -19,6 +19,7 @@
 - ✅ **Error handling** middleware
 - ✅ **Graceful shutdown** handling
 - ✅ **Extension endpoints** (health checks, configuration)
+- ✅ **AI Client** for interacting with AI proxy (OpenAI, OpenRouter, Ollama, etc.)
 
 ---
 
@@ -310,6 +311,155 @@ const server = new McpServer({
 });
 ```
 
+### 7. AI Client
+
+The SDK provides an AI client for interacting with the AI proxy provided by MCP Manager. This allows your MCP server to use AI capabilities (like OpenAI, OpenRouter, Ollama) without managing API keys directly.
+
+**How it works:**
+
+When MCP Manager starts your server, it automatically injects:
+- `MCP_AI_PROXY_URL` - The URL of the AI proxy endpoint
+- `MCP_AI_PROXY_TOKEN` - A unique token for authentication
+
+The proxy acts as a secure intermediary, providing:
+- **Security** - Your server never sees the real API key
+- **Rate limiting** - MCP Manager can limit requests per server
+- **Model restrictions** - Admins can control which models each server can use
+- **Usage tracking** - All requests are logged for monitoring
+- **Centralized config** - One API key configuration for all servers
+
+**Basic usage:**
+
+```typescript
+import { getAIClient } from '@tscodex/mcp-sdk';
+
+const ai = getAIClient();
+
+// Always check availability before using AI
+if (await ai.isAvailable()) {
+  // Simple completion
+  const result = await ai.complete('Summarize this text...');
+
+  // Or full chat API
+  const response = await ai.chat({
+    messages: [{ role: 'user', content: 'Hello!' }],
+    temperature: 0.7,
+  });
+}
+```
+
+**Using with tools:**
+
+```typescript
+import { McpServer, Type, getAIClient } from '@tscodex/mcp-sdk';
+
+const server = new McpServer({ name: 'my-server' });
+const ai = getAIClient();
+
+server.addTool({
+  name: 'summarize',
+  description: 'Summarize text using AI',
+  schema: Type.Object({
+    text: Type.String({ description: 'Text to summarize' }),
+  }),
+  handler: async ({ text }) => {
+    // Graceful degradation when AI is not available
+    if (!await ai.isAvailable()) {
+      return {
+        content: [{ type: 'text', text: 'AI summarization is not available' }],
+        isError: true,
+      };
+    }
+
+    const summary = await ai.completeWithSystem(
+      'You are a helpful assistant that creates concise summaries.',
+      `Please summarize the following text:\n\n${text}`
+    );
+
+    return {
+      content: [{ type: 'text', text: summary }],
+    };
+  },
+});
+```
+
+**Error handling:**
+
+```typescript
+import { getAIClient, AIClientError } from '@tscodex/mcp-sdk';
+
+const ai = getAIClient();
+
+try {
+  const result = await ai.complete('Hello');
+} catch (error) {
+  if (error instanceof AIClientError) {
+    switch (error.code) {
+      case 'NOT_CONFIGURED':
+        // AI proxy URL or token not set
+        break;
+      case 'UNAUTHORIZED':
+        // Token invalid or expired (server restarted?)
+        break;
+      case 'RATE_LIMITED':
+        // Too many requests, try again later
+        break;
+      case 'API_ERROR':
+        // Upstream API error
+        break;
+      case 'TIMEOUT':
+        // Request timed out
+        break;
+      case 'NETWORK_ERROR':
+        // Network connectivity issue
+        break;
+    }
+  }
+}
+```
+
+**Custom configuration:**
+
+```typescript
+import { createAIClient } from '@tscodex/mcp-sdk';
+
+// Create client with custom options
+const ai = createAIClient({
+  defaultModel: 'gpt-4',      // Default model for all requests
+  timeout: 60000,              // 60 second timeout
+  // baseUrl and token are still read from env by default
+});
+```
+
+**Available methods:**
+
+```typescript
+// Check if AI is configured (synchronous)
+ai.isConfigured(): boolean;
+
+// Check if AI proxy is available (async, cached)
+await ai.isAvailable(forceCheck?: boolean): Promise<boolean>;
+
+// Get available models
+await ai.getModels(): Promise<ModelsResponse>;
+
+// Full chat completion API
+await ai.chat(options: ChatCompletionOptions): Promise<ChatCompletion>;
+
+// Simple single-prompt completion
+await ai.complete(prompt: string, options?: ChatCompletionOptions): Promise<string>;
+
+// System + user prompt pattern
+await ai.completeWithSystem(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: ChatCompletionOptions
+): Promise<string>;
+
+// Reset availability cache (useful after config changes)
+ai.resetAvailabilityCache(): void;
+```
+
 ---
 
 ## 📖 API Reference
@@ -434,6 +584,8 @@ Extension automatically passes configuration via environment variables:
 - `MCP_CONFIG` - Configuration as JSON string
 - `MCP_AUTH_TOKEN` - Authentication token/key (for auth-enabled servers)
 - `MCP_PATH` - MCP endpoint path (default: '/mcp')
+- `MCP_AI_PROXY_URL` - AI proxy endpoint URL (for AI Client)
+- `MCP_AI_PROXY_TOKEN` - AI proxy authentication token (for AI Client)
 
 **Fallback Support:** SDK supports fallback to non-prefixed environment variables for server settings:
 - `MCP_HOST` → `HOST` (if `MCP_HOST` is not set)
@@ -738,6 +890,7 @@ Check the `examples/` directory for complete examples:
 - **with-auth.ts** - Authentication & authorization
 - **with-error-handler.ts** - Custom error handling
 - **file-server.ts** - File operations example
+- **with-ai-client.ts** - AI Client integration example
 
 Run examples:
 
