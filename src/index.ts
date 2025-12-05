@@ -70,6 +70,23 @@ export {
   type RateLimitConfig 
 } from './security.js';
 
+// AI Client
+export {
+  AIClient,
+  AIClientError,
+  getAIClient,
+  createAIClient,
+  type AIClientOptions,
+  type ChatMessage,
+  type ChatCompletionOptions,
+  type ChatCompletionChoice,
+  type ChatCompletionUsage,
+  type ChatCompletion,
+  type ModelInfo,
+  type ModelsResponse,
+  type AIClientErrorCode,
+} from './ai-client.js';
+
 // Export version
 export const SDK_VERSION = '0.0.1';
 

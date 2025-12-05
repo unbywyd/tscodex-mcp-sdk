@@ -15,6 +15,8 @@ export { createHttpTransport, TransportManager, getRequestContext, extractReques
 export { validateConfig, updateConfig } from './config.js';
 export { loadConfig } from './config-loader.js';
 export { safePath, isPathSafe, sanitizeFilename, RateLimiter, validateRequestSize, filterSecrets, filterMcpConfig, filterMcpPublicConfig } from './security.js';
+// AI Client
+export { AIClient, AIClientError, getAIClient, createAIClient, } from './ai-client.js';
 // Export version
 export const SDK_VERSION = '0.0.1';
 //# sourceMappingURL=index.js.map

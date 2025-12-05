@@ -14,5 +14,6 @@ export { createHttpTransport, TransportManager, getRequestContext, extractReques
 export { validateConfig, updateConfig } from './config.js';
 export { loadConfig, type ConfigLoaderOptions } from './config-loader.js';
 export { safePath, isPathSafe, sanitizeFilename, RateLimiter, validateRequestSize, filterSecrets, filterMcpConfig, filterMcpPublicConfig, type RateLimitConfig } from './security.js';
+export { AIClient, AIClientError, getAIClient, createAIClient, type AIClientOptions, type ChatMessage, type ChatCompletionOptions, type ChatCompletionChoice, type ChatCompletionUsage, type ChatCompletion, type ModelInfo, type ModelsResponse, type AIClientErrorCode, } from './ai-client.js';
 export declare const SDK_VERSION = "0.0.1";
 //# sourceMappingURL=index.d.ts.map
