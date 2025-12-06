@@ -206,11 +206,14 @@ export interface ModelInfo {
   owned_by?: string;
 }
 
-/** Response from /models endpoint */
+/** Response from /models endpoint (OpenAI-compatible with MCP Manager extensions) */
 export interface ModelsResponse {
   object: 'list';
   data: ModelInfo[];
+  /** Default model configured in MCP Manager */
   default_model: string;
+  /** Rate limit for this token (requests per minute, 0 = unlimited) */
+  rate_limit?: number;
 }
 
 /** Error codes */
@@ -313,6 +316,26 @@ export class AIClient {
   async getModels(): Promise<ModelsResponse> {
     this.ensureConfigured();
     return this.request<ModelsResponse>('/models');
+  }
+
+  /**
+   * Get the default model configured in MCP Manager
+   * Fetches from proxy if not cached locally
+   *
+   * @returns The default model ID, or null if not available
+   */
+  async getDefaultModel(): Promise<string | null> {
+    // Return local override if set
+    if (this.defaultModel) {
+      return this.defaultModel;
+    }
+
+    try {
+      const models = await this.getModels();
+      return models.default_model || null;
+    } catch {
+      return null;
+    }
   }
 
   /**
