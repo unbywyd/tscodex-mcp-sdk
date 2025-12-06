@@ -1,29 +1,310 @@
 # @tscodex/mcp-sdk
 
-> **TypeScript SDK for creating MCP (Model Context Protocol) servers with seamless Extension integration**
+> **TypeScript SDK for creating LLM tools based on Model Context Protocol**
 
 [![npm version](https://img.shields.io/npm/v/@tscodex/mcp-sdk)](https://www.npmjs.com/package/@tscodex/mcp-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
----
-
-## 🎯 Overview
-
-`@tscodex/mcp-sdk` is a production-ready TypeScript SDK for building MCP servers with built-in support for:
-
-- ✅ **Type-safe APIs** using TypeBox schemas
-- ✅ **Configuration management** with Extension integration
-- ✅ **Authentication & Authorization** with role-based access control
-- ✅ **HTTP transport** for MCP protocol
-- ✅ **Security features** (rate limiting, request validation, path sanitization)
-- ✅ **Error handling** middleware
-- ✅ **Graceful shutdown** handling
-- ✅ **Extension endpoints** (health checks, configuration)
-- ✅ **AI Client** for interacting with AI proxy (OpenAI, OpenRouter, Ollama, etc.)
+**Website**: [tscodex.com](https://tscodex.com)
 
 ---
 
-## 📦 Installation
+## 🎯 About the Project
+
+`@tscodex/mcp-sdk` is a TypeScript SDK for quickly creating MCP (Model Context Protocol) servers. The project serves as the foundation for building LLM tools, the first of which is **MCP Manager** — a desktop application for managing MCP servers with a visual interface.
+
+### TSCodex Ecosystem
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TSCodex Ecosystem                        │
+│                                                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │   MCP SDK    │───▶│ MCP Manager  │───▶│ Cursor Bridge│  │
+│  │  (Core)      │    │  (Desktop)   │    │  (Extension) │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │
+│         │                   │                    │          │
+│         └───────────────────┴────────────────────┘          │
+│                            │                                │
+│                    ┌───────▼────────┐                        │
+│                    │  MCP Servers  │                        │
+│                    │  (Examples)   │                        │
+│                    └───────────────┘                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Quick Links
+
+
+**[📦 MCP Manager](https://github.com/unbywyd/tscodex-mcp-manager-app)** — Desktop application for managing MCP servers  
+**[🌉 Cursor Bridge](https://github.com/unbywyd/tscodex-msp-manager-bridge)** — Extension for Cursor/VS Code
+
+---
+
+## 💡 Project Essence
+
+**TSCodex** is a platform for creating LLM tools. The SDK provides core functionality for quickly creating MCP servers via HTTP, without requiring MCP Manager. Servers can be run via `npx`, passing ENV parameters directly.
+
+### Key Features
+
+- ✅ **Rapid Development** — Create MCP servers in minutes
+- ✅ **HTTP Transport** — Standard HTTP for integration
+- ✅ **Type-safe API** — Full typing with TypeBox
+- ✅ **Flexible Configuration** — Extension and local settings support
+- ✅ **Security** — Built-in protection mechanisms
+- ✅ **AI Integration** — Ready-to-use client for AI providers
+- ✅ **Multi-workspace** — Support for multiple workspaces
+
+### How It Works
+
+```
+┌─────────────────┐
+│   MCP Server    │  ← Built on SDK
+│  (npm package)  │
+└────────┬────────┘
+         │
+         ├───▶ Run via npx (standalone)
+         │     └─▶ Pass ENV parameters
+         │
+         └───▶ Run via MCP Manager
+               ├─▶ Visual configuration
+               ├─▶ Secrets management
+               ├─▶ Access control
+               └─▶ Usage statistics
+```
+
+---
+
+## 🚀 MCP Manager — First Tool in the Ecosystem
+
+**MCP Manager** is a desktop application that manages MCP servers, allows configuring them, passing secrets, authorization, AI agent, and creating dynamic tools/resources for MCP.
+
+### Why MCP Manager?
+
+When working with Cursor, each open project requires its own workspace. For example, the [@tscodex/mcp-images](https://github.com/unbywyd/tscodex-mcp-images) server works with images and requires the path to the current project's root directory. MCP Manager enables:
+
+- **One Server, Multiple Workspaces** — One server can work with different projects
+- **Automatic Registration** — Cursor Bridge automatically registers workspace by project path
+- **Proxying** — Each workspace gets its own proxy to the server
+- **Perfect Encapsulation** — Complete isolation between workspaces
+
+### Workspace Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MCP Manager                               │
+│                                                              │
+│  ┌──────────────┐         ┌──────────────┐                │
+│  │   Server     │─────────▶│  Workspace A  │                │
+│  │  (Images)    │         │  /project/foo │                │
+│  └──────────────┘         └───────────────┘                │
+│         │                                                   │
+│         │         ┌──────────────┐                          │
+│         └────────▶│  Workspace B │                          │
+│                   │  /project/bar│                          │
+│                   └──────────────┘                          │
+│                                                              │
+│  SDK receives headers from current workspace                │
+│  and allows one server to be used with different WS        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### MCP Manager Features
+
+#### 🎨 Visual Interface
+
+MCP Manager provides a full-featured UI for server management:
+
+- **Metadata View** — Display tools, resources, prompts
+- **JSON Configuration Schema** — Automatic settings detection
+- **UI Configuration** — Convenient forms for configuration
+- **Lifecycle Management** — Start, stop, restart servers
+
+#### 🔐 Secrets Management (3 Levels)
+
+```
+┌─────────────────────────────────────────┐
+│      Global Secrets                    │  ← Level 1
+│  (Applied to all workspaces)           │
+└─────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│    Workspace Secrets                    │  ← Level 2
+│  (Override global)                      │
+└─────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────┐
+│    Server Secrets                       │  ← Level 3
+│  (Highest priority)                     │
+└─────────────────────────────────────────┘
+```
+
+**Security:**
+- Secrets stored in OS keychain (Windows Credential Store, macOS Keychain, Linux GNOME Keyring)
+- Never stored in plain text
+- Passed only via environment variables
+
+#### 🛡️ Permissions System
+
+Flexible access control system:
+
+| Category | Controls |
+|----------|----------|
+| **Environment** | System environment variables |
+| **Context** | Workspace/session information |
+| **Secrets** | Available secret keys |
+| **AI Access** | Access to AI agent |
+
+**Environment Configuration Example:**
+- ✅ Allow PATH — `PATH`, `PATHEXT`
+- ✅ Allow Home — `HOME`, `USERPROFILE`
+- ✅ Allow Node — `NODE_*`, `npm_*`
+- ⚙️ Custom Allowlist — Specific variables
+
+**Secrets Configuration Example:**
+- 🔒 None — Secrets are not passed
+- 📋 Allowlist — Only specified keys
+- 🔓 All — All secrets from store
+
+#### 🤖 AI Agent
+
+MCP Manager provides an OpenAI-compatible proxy for MCP servers:
+
+**How It Works:**
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ MCP Server   │───▶│ AI Proxy     │───▶│ AI Provider  │
+│              │    │ (Manager)    │    │ (OpenAI/etc) │
+└──────────────┘    └──────────────┘    └──────────────┘
+     │                    │                    │
+     │                    │                    │
+     └─▶ MCP_AI_PROXY_URL │                    │
+     └─▶ MCP_AI_PROXY_TOKEN                    │
+                                               │
+                                    Keys are NOT passed
+                                    to server directly!
+```
+
+**Features:**
+- Support for any OpenAI-compatible APIs (OpenAI, OpenRouter, Ollama, etc.)
+- Configuration via Base URL and API Key
+- Access control at server level
+- Model restrictions (Allowed Models)
+- Rate limiting (max requests per minute)
+- **Token Statistics** — Full transparency of usage
+
+**Usage in SDK:**
+```typescript
+import { getAIClient } from '@tscodex/mcp-sdk';
+
+const ai = getAIClient();
+
+if (await ai.isAvailable()) {
+  const result = await ai.complete('Summarize this text...');
+}
+```
+
+#### 🛠️ MCP Tools — Dynamic Server
+
+MCP Manager includes a built-in **MCP Tools server** that allows creating tools, resources, and prompts without writing a separate package.
+
+**Tool Types:**
+
+1. **Static** — Returns fixed content
+2. **HTTP** — Executes HTTP requests
+3. **Function** — Executes JavaScript code
+
+**AI-Assisted Generation:**
+- **✨ AI** button when creating tools/resources
+- Generate definitions from natural language
+- AI agent integration for form filling
+
+**HTTP Tool Example:**
+```json
+{
+  "name": "get_weather",
+  "description": "Get weather for a city",
+  "executor": {
+    "type": "http",
+    "method": "GET",
+    "url": "https://api.weather.com/v1/weather?city={{city}}&key={{SECRET_WEATHER_KEY}}"
+  }
+}
+```
+
+**Available Context in Function Executor:**
+```javascript
+async (params, context) => {
+  // Request parameters
+  const { param1, param2 } = params;
+  
+  // Session context
+  context.session.workspaceId;   // Current workspace ID
+  context.session.projectRoot;  // Project path
+  context.session.clientType;   // Client type (cursor, claude-code)
+  
+  // Request context
+  context.request.timestamp;     // Unix timestamp
+  context.request.requestId;     // Unique request ID
+  
+  // Utilities
+  await context.utils.fetch(url, options);
+  context.utils.log(message);
+  
+  return { result: "..." };
+}
+```
+
+#### 📊 Statistics and Monitoring
+
+- **AI Usage** — Total requests and tokens
+- **Per-Server Breakdown** — Statistics for each server
+- **Request History** — Log of all AI requests
+- **Transparency** — Full visibility of resource usage
+
+---
+
+## 🌉 Cursor Bridge — IDE Integration
+
+**Cursor Bridge** is an extension for Cursor/VS Code that provides seamless integration with MCP Manager.
+
+### Bridge Features
+
+- **Automatic Registration** — Automatically registers workspace in MCP Manager by project path
+- **Synchronization** — Synchronizes Cursor with MCP Manager
+- **Automatic Configuration** — Registers MCP server proxies in local `mcp.json`
+- **Perfect Encapsulation** — Complete isolation between workspaces
+
+### How It Works
+
+```
+┌─────────────────┐
+│  Cursor/VS Code │
+│  (project open)  │
+└────────┬────────┘
+         │
+         │ 1. Bridge detects project path
+         ▼
+┌─────────────────┐
+│  Cursor Bridge  │
+│  (Extension)    │
+└────────┬────────┘
+         │
+         │ 2. Registers workspace in MCP Manager
+         │ 3. Gets list of available servers
+         │ 4. Updates mcp.json
+         ▼
+┌─────────────────┐
+│  MCP Manager    │
+│  (Desktop App)  │
+└─────────────────┘
+```
+
+---
+
+## 📦 SDK Installation
 
 ```bash
 npm install @tscodex/mcp-sdk
@@ -37,16 +318,6 @@ npm install @tscodex/mcp-sdk
 
 ## 🚀 Quick Start
 
-### Server Name Validation
-
-Server name must:
-- Start with a Latin letter (a-z, A-Z)
-- Contain only Latin letters, numbers, hyphens (-), and underscores (_)
-- Not start with a number
-
-**Valid examples:** `my-server`, `mcp_images`, `server123`, `MyServer`  
-**Invalid examples:** `@tscodex/mcp-images` (contains @ and /), `123server` (starts with number), `my server` (contains space)
-
 ### Minimal Server
 
 ```typescript
@@ -58,7 +329,7 @@ const server = new McpServer({
   description: 'Simple hello world MCP server'
 });
 
-// Define schema using TypeBox
+// Define schema with TypeBox
 const HelloSchema = Type.Object({
   name: Type.Optional(Type.String({ 
     description: 'Name to greet',
@@ -89,9 +360,27 @@ await server.start();
 console.log(`Server running on port ${server.serverPort}`);
 ```
 
+### Running the Server
+
+**Standalone (via npx):**
+```bash
+npx @tscodex/mcp-images
+```
+
+**With ENV parameters:**
+```bash
+MCP_PORT=3848 MCP_PROJECT_ROOT=/path/to/project npx @tscodex/mcp-images
+```
+
+**Via MCP Manager:**
+1. Install MCP Manager
+2. Add server via UI
+3. Configure workspace
+4. Start server
+
 ---
 
-## 📚 Core Features
+## 📚 Core SDK Features
 
 ### 1. Type-Safe Configuration
 
@@ -130,14 +419,9 @@ server.addTool({
   name: 'api-call',
   schema: Type.Object({}),
   handler: async (params, context) => {
-    // context.config contains full config including secrets
+    // context.config contains full configuration including secrets
     const timeout = context.config.timeout;
-    const apiKey = context.config.apiKey; // Full access to all config
-    
-    // If you need to return config in result, filter public parameters
-    import { filterMcpPublicConfig } from '@tscodex/mcp-sdk';
-    const publicConfig = filterMcpPublicConfig(context.config);
-    // Only 'mcp_*' keys will be in publicConfig
+    const apiKey = context.config.apiKey;
     
     // ...
   }
@@ -168,19 +452,16 @@ const server = new McpServer<Config, Roles, Session>({
   auth: {
     roles: {
       admin: (session, context) => {
-        // Access to loaded configuration
         const allowedAdmins = context.config.adminEmails || [];
         return session.role === Roles.ADMIN && 
                allowedAdmins.includes(session.email);
       },
       user: async (session, context) => {
-        // Async checks supported
         return session.role === Roles.USER;
       }
     },
     sessionSchema: SessionSchema,
     requireSession: true,
-    // Transform token from MCP_AUTH_TOKEN into full session
     loadSession: async (token, context) => {
       // Validate token and fetch user data
       const response = await fetch(`${context.config.apiUrl}/validate-token`, {
@@ -197,7 +478,7 @@ server.addTool({
   name: 'delete-file',
   description: 'Delete a file (admin only)',
   schema: Type.Object({ path: Type.String() }),
-  access: [Roles.ADMIN], // Only admins can use this tool
+  access: [Roles.ADMIN], // Only admins can use
   handler: async (params, context) => {
     // context.session is typed as Session
     console.log(`Admin ${context.session.email} deleted ${params.path}`);
@@ -217,7 +498,7 @@ server.addResource({
   handler: async (uri, context) => {
     return {
       contents: [{
-        uri, // Use normalized URI
+        uri,
         mimeType: 'text/plain',
         text: 'Server information...'
       }]
@@ -246,96 +527,16 @@ server.addPrompt({
 });
 ```
 
-### 4. Error Handling
+### 4. AI Client
 
-```typescript
-import type { ErrorHandler } from '@tscodex/mcp-sdk';
-
-const errorHandler: ErrorHandler = (error, context) => {
-  if (error instanceof FileNotFoundError) {
-    return `File not found: ${error.path}. Please check the file path.`;
-  }
-  if (error instanceof PermissionError) {
-    return `Access denied. Please contact administrator.`;
-  }
-  // Fallback to default message
-  return `An error occurred while executing ${context.type} "${context.name}": ${error.message}`;
-};
-
-const server = new McpServer({
-  name: 'my-server',
-  version: '1.0.0',
-  description: 'Server with custom error handling',
-  errorHandler
-});
-```
-
-### 5. Security Features
-
-```typescript
-import { RateLimiter } from '@tscodex/mcp-sdk';
-
-const server = new McpServer({
-  name: 'secure-server',
-  version: '1.0.0',
-  description: 'Server with security features',
-  securityOptions: {
-    rateLimit: {
-      maxRequests: 100,
-      windowMs: 60000, // 1 minute
-      message: 'Too many requests'
-    },
-    maxRequestBodySize: 10 * 1024 * 1024, // 10MB
-    validateRequestSize: true
-  },
-  httpOptions: {
-    requestTimeout: 30000,
-    keepAliveTimeout: 5000
-  }
-});
-```
-
-### 6. Logging
-
-```typescript
-const server = new McpServer({
-  name: 'my-server',
-  version: '1.0.0',
-  description: 'Server with custom logger',
-  logger: {
-    info: (msg, ...args) => console.log(`[INFO] ${msg}`, ...args),
-    error: (msg, ...args) => console.error(`[ERROR] ${msg}`, ...args),
-    warn: (msg, ...args) => console.warn(`[WARN] ${msg}`, ...args),
-    debug: (msg, ...args) => console.debug(`[DEBUG] ${msg}`, ...args)
-  }
-});
-```
-
-### 7. AI Client
-
-The SDK provides an AI client for interacting with the AI proxy provided by MCP Manager. This allows your MCP server to use AI capabilities (like OpenAI, OpenRouter, Ollama) without managing API keys directly.
-
-**How it works:**
-
-When MCP Manager starts your server, it automatically injects:
-- `MCP_AI_PROXY_URL` - The URL of the AI proxy endpoint
-- `MCP_AI_PROXY_TOKEN` - A unique token for authentication
-
-The proxy acts as a secure intermediary, providing:
-- **Security** - Your server never sees the real API key
-- **Rate limiting** - MCP Manager can limit requests per server
-- **Model restrictions** - Admins can control which models each server can use
-- **Usage tracking** - All requests are logged for monitoring
-- **Centralized config** - One API key configuration for all servers
-
-**Basic usage:**
+SDK provides a ready-to-use client for working with AI providers via MCP Manager:
 
 ```typescript
 import { getAIClient } from '@tscodex/mcp-sdk';
 
 const ai = getAIClient();
 
-// Always check availability before using AI
+// Always check availability before using
 if (await ai.isAvailable()) {
   // Simple completion
   const result = await ai.complete('Summarize this text...');
@@ -348,14 +549,8 @@ if (await ai.isAvailable()) {
 }
 ```
 
-**Using with tools:**
-
+**Usage in Tools:**
 ```typescript
-import { McpServer, Type, getAIClient } from '@tscodex/mcp-sdk';
-
-const server = new McpServer({ name: 'my-server' });
-const ai = getAIClient();
-
 server.addTool({
   name: 'summarize',
   description: 'Summarize text using AI',
@@ -383,82 +578,137 @@ server.addTool({
 });
 ```
 
-**Error handling:**
+### 5. Multi-Workspace Support
+
+SDK supports working with multiple workspaces via HTTP headers:
 
 ```typescript
-import { getAIClient, AIClientError } from '@tscodex/mcp-sdk';
+server.addTool({
+  name: 'list-files',
+  schema: Type.Object({}),
+  handler: async (params, context) => {
+    // projectRoot automatically reflects per-request header
+    // or falls back to server-level MCP_PROJECT_ROOT
+    const root = context.projectRoot;
 
-const ai = getAIClient();
+    // workspaceId is available for logging/caching (optional)
+    const wsId = context.workspaceId;
 
-try {
-  const result = await ai.complete('Hello');
-} catch (error) {
-  if (error instanceof AIClientError) {
-    switch (error.code) {
-      case 'NOT_CONFIGURED':
-        // AI proxy URL or token not set
-        break;
-      case 'UNAUTHORIZED':
-        // Token invalid or expired (server restarted?)
-        break;
-      case 'RATE_LIMITED':
-        // Too many requests, try again later
-        break;
-      case 'API_ERROR':
-        // Upstream API error
-        break;
-      case 'TIMEOUT':
-        // Request timed out
-        break;
-      case 'NETWORK_ERROR':
-        // Network connectivity issue
-        break;
+    if (!root) {
+      return { content: [{ type: 'text', text: 'No project root configured' }] };
     }
+
+    // Files are resolved relative to the correct workspace
+    const files = await fs.readdir(root);
+    return {
+      content: [{ type: 'text', text: files.join('\n') }]
+    };
   }
-}
-```
-
-**Custom configuration:**
-
-```typescript
-import { createAIClient } from '@tscodex/mcp-sdk';
-
-// Create client with custom options
-const ai = createAIClient({
-  defaultModel: 'gpt-4',      // Default model for all requests
-  timeout: 60000,              // 60 second timeout
-  // baseUrl and token are still read from env by default
 });
 ```
 
-**Available methods:**
+**HTTP Headers:**
+- `X-MCP-Project-Root` — Path to workspace project root
+- `X-MCP-Workspace-Id` — Workspace identifier (optional)
 
-```typescript
-// Check if AI is configured (synchronous)
-ai.isConfigured(): boolean;
+---
 
-// Check if AI proxy is available (async, cached)
-await ai.isAvailable(forceCheck?: boolean): Promise<boolean>;
+## 🔀 Per-Request Context (Multi-Workspace Support)
 
-// Get available models
-await ai.getModels(): Promise<ModelsResponse>;
+When multiple workspaces share a single MCP server process, the SDK supports **per-request context** via HTTP headers. This allows each request to have its own `projectRoot` and `workspaceId`.
 
-// Full chat completion API
-await ai.chat(options: ChatCompletionOptions): Promise<ChatCompletion>;
+### How It Works
 
-// Simple single-prompt completion
-await ai.complete(prompt: string, options?: ChatCompletionOptions): Promise<string>;
-
-// System + user prompt pattern
-await ai.completeWithSystem(
-  systemPrompt: string,
-  userPrompt: string,
-  options?: ChatCompletionOptions
-): Promise<string>;
-
-// Reset availability cache (useful after config changes)
-ai.resetAvailabilityCache(): void;
 ```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Workspace A   │     │   MCP Gateway   │     │   MCP Server    │
+│  /projects/foo  │────▶│  (Proxy Layer)  │────▶│   (Shared)      │
+└─────────────────┘     │                 │     │                 │
+                        │  Adds headers:  │     │  Reads via      │
+┌─────────────────┐     │  X-MCP-Project- │     │  AsyncLocal     │
+│   Workspace B   │────▶│    Root         │     │  Storage        │
+│  /projects/bar  │     │  X-MCP-Workspace│     │                 │
+└─────────────────┘     │    -Id          │     │                 │
+                        └─────────────────┘     └─────────────────┘
+```
+
+### Context Priority
+
+`projectRoot` is resolved with the following priority:
+
+1. **Per-request header** (`X-MCP-Project-Root`) — highest priority
+2. **Server-level environment** (`MCP_PROJECT_ROOT`)
+3. **undefined** if neither is set
+
+---
+
+## 🌐 Extension Integration
+
+SDK is designed for seamless work with Cursor/VSCode extensions.
+
+### Metadata Mode (`--meta` flag)
+
+SDK supports metadata mode for Extension integration. When started with `--meta` or `--metadata` flag:
+
+- Server outputs only JSON metadata to `stdout` (no logs)
+- All logs are redirected to `stderr`
+- Server exits after outputting metadata (doesn't start HTTP server)
+- Useful for Extension to discover server capabilities without starting the server
+
+**Usage:**
+```bash
+node dist/index.js --meta
+# or
+node dist/index.js --metadata
+```
+
+### Environment Variables
+
+Extension automatically passes configuration via environment variables:
+
+- `MCP_PORT` - Server port (default: 3848)
+- `MCP_HOST` - Server host (default: '0.0.0.0')
+- `MCP_PROJECT_ROOT` - Workspace root directory
+- `MCP_CONFIG` - Configuration as JSON string
+- `MCP_AUTH_TOKEN` - Authentication token (for auth-enabled servers)
+- `MCP_PATH` - MCP endpoint path (default: '/mcp')
+- `MCP_AI_PROXY_URL` - AI proxy endpoint URL (for AI Client)
+- `MCP_AI_PROXY_TOKEN` - AI proxy authentication token (for AI Client)
+
+**Important:** Only environment variables with `MCP_` prefix are loaded into application configuration (via `loadConfig`). This prevents accidental exposure of system environment variables.
+
+### Extension Endpoints
+
+SDK automatically creates endpoints for Extension:
+
+- `GET /health` - Health check with server information
+- `GET /gateway/metadata` - Get server metadata (tools, resources, prompts, config schema)
+- `POST /gateway/config/project-root` - Update project root
+- `GET /gateway/config/current` - Get current configuration (public only)
+- `POST /gateway/config` - Update configuration dynamically (deep merge)
+
+---
+
+## 🔐 Security
+
+### Built-in Protection Mechanisms
+
+- ✅ **Input Validation** — TypeBox schemas for all parameters
+- ✅ **Path Sanitization** — Protection against path traversal attacks
+- ✅ **Rate Limiting** — Request rate limiting
+- ✅ **Request Size Validation** — Protection against DoS attacks
+- ✅ **Secrets Management** — Secure secret storage
+- ✅ **Permission System** — Granular access control
+
+### Best Practices
+
+1. **Always validate user input** using TypeBox schemas
+2. **Use `safePath()`** for file operations to prevent path traversal
+3. **Enable rate limiting** for production servers
+4. **Sanitize filenames** using `sanitizeFilename()`
+5. **Validate request sizes** to prevent DoS attacks
+6. **Use HTTPS** in production (configured at transport level)
+7. **Implement proper authentication** for sensitive operations
 
 ---
 
@@ -473,8 +723,7 @@ Main server class.
 ```typescript
 interface McpServerOptions<TConfig, TRoles, TSession> {
   // REQUIRED
-  name: string;                    // Unique server name (must start with Latin letter, 
-                                   // contain only letters, numbers, hyphens, underscores)
+  name: string;                    // Unique server name (must start with Latin letter)
   version: string;                 // Version (semver)
   description: string;             // Server description
   
@@ -517,7 +766,7 @@ server.getSession(): TSession | undefined;
 server.getTools(): string[];
 server.getResources(): string[];
 server.getPrompts(): string[];
-server.getMetadata(): ServerMetadata;  // Get server metadata (tools, resources, prompts, config schema)
+server.getMetadata(): ServerMetadata;  // Get server metadata
 
 // Properties
 server.serverId: string;           // Server ID (resource prefix)
@@ -525,359 +774,6 @@ server.serverPort: number;         // Server port
 server.serverHost: string;         // Server host
 server.running: boolean;             // Is server running
 ```
-
-#### Events
-
-```typescript
-server.on('initialized', () => {});
-server.on('started', (port: number, host: string) => {});
-server.on('stopped', () => {});
-server.on('error', (error: Error) => {});
-server.on('toolRegistered', (name: string) => {});
-server.on('toolCalled', (name: string, params: any, result: any) => {});
-server.on('toolError', (name: string, params: any, error: Error) => {});
-server.on('resourceRegistered', (uri: string) => {});
-server.on('resourceRead', (uri: string, result: any) => {});
-server.on('resourceError', (uri: string, error: Error) => {});
-server.on('promptRegistered', (name: string) => {});
-server.on('promptCalled', (name: string, params: any, result: any) => {});
-server.on('promptError', (name: string, params: any, error: Error) => {});
-server.on('projectRootChanged', (newRoot: string, previousRoot: string) => {});
-```
-
----
-
-## 🌐 Extension Integration
-
-The SDK is designed to work seamlessly with Cursor/VSCode Extensions.
-
-### Metadata Mode (`--meta` flag)
-
-SDK supports metadata mode for Extension integration. When started with `--meta` or `--metadata` flag:
-
-- Server outputs only JSON metadata to `stdout` (no logs)
-- All logs are redirected to `stderr`
-- Server exits after outputting metadata (doesn't start HTTP server)
-- Useful for Extension to discover server capabilities without starting the server
-
-**Usage:**
-```bash
-node dist/index.js --meta
-# or
-node dist/index.js --metadata
-```
-
-**Programmatic usage:**
-```typescript
-await server.initialize();
-const metadata = server.getMetadata();
-console.log(JSON.stringify(metadata, null, 2));
-```
-
-### Environment Variables
-
-Extension automatically passes configuration via environment variables:
-
-- `MCP_PORT` - Server port (default: 3848)
-- `MCP_HOST` - Server host (default: '0.0.0.0')
-- `MCP_PROJECT_ROOT` - Workspace root directory
-- `MCP_CONFIG` - Configuration as JSON string
-- `MCP_AUTH_TOKEN` - Authentication token/key (for auth-enabled servers)
-- `MCP_PATH` - MCP endpoint path (default: '/mcp')
-- `MCP_AI_PROXY_URL` - AI proxy endpoint URL (for AI Client)
-- `MCP_AI_PROXY_TOKEN` - AI proxy authentication token (for AI Client)
-
-**Fallback Support:** SDK supports fallback to non-prefixed environment variables for server settings:
-- `MCP_HOST` → `HOST` (if `MCP_HOST` is not set)
-- `MCP_PORT` → `PORT` (if `MCP_PORT` is not set)
-- `MCP_PROJECT_ROOT` → `CURSOR_WORKSPACE` → `PROJECT_ROOT` (if `MCP_PROJECT_ROOT` is not set)
-
-**Priority order:** `MCP_*` env vars → non-prefixed env vars → CLI arguments → defaults
-
-**Important:** Only environment variables with `MCP_` prefix are loaded into application configuration (via `loadConfig`). This prevents accidental exposure of system environment variables. For example, use `MCP_TIMEOUT=5000` instead of `TIMEOUT=5000`. However, server settings (host, port, project root) support fallback to non-prefixed variables for convenience.
-
-### Extension Endpoints
-
-SDK automatically creates endpoints for Extension:
-
-- `GET /health` - Health check with server information
-- `GET /gateway/metadata` - Get server metadata (tools, resources, prompts, config schema)
-- `POST /gateway/config/project-root` - Update project root
-- `GET /gateway/config/current` - Get current configuration (public config only)
-- `POST /gateway/config` - Update configuration dynamically (deep merge)
-
-### Configuration Management
-
-**Important:** Extension configuration is updated **only by restarting the process** with new environment variables. The SDK provides read-only access via `getConfig()`.
-
-#### Public MCP Configuration Parameters
-
-Handlers receive **full configuration** (including secrets) in `context.config` for use in code. SDK provides `filterMcpPublicConfig()` utility to help handlers return only public MCP parameters (`mcp_*` keys) in their results.
-
-**Example:**
-```typescript
-import { filterMcpPublicConfig } from '@tscodex/mcp-sdk';
-
-// In your config schema, define public MCP parameters with 'mcp_' prefix
-const ConfigSchema = Type.Object({
-  // Public MCP parameters (safe to return in results)
-  mcp_timeout: Type.Number({ default: 5000 }),
-  mcp_api_url: Type.String({ default: 'https://api.example.com' }),
-  
-  // Private parameters (secrets - use in code but don't return in results)
-  apiKey: Type.String(), // Secret - use in code, filter before returning
-  databasePassword: Type.String() // Secret - use in code, filter before returning
-});
-
-// In handler
-handler: async (params, context) => {
-  // Full config access (including secrets) - use freely in code
-  const timeout = context.config.timeout; // ✅ Available
-  const apiKey = context.config.apiKey; // ✅ Available - use for API calls
-  
-  // If returning config in result, filter to public parameters only
-  const publicConfig = filterMcpPublicConfig(context.config);
-  // publicConfig contains only 'mcp_*' keys
-  
-  return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(publicConfig) // Safe - only public params
-    }]
-  };
-}
-```
-
-This design ensures that:
-- **Full config** (including secrets) is accessible in handlers for use in code
-- **Public parameters** (`mcp_*` keys) can be safely returned in results using `filterMcpPublicConfig()`
-- **Responsibility** for not leaking secrets in MCP responses lies with handlers
-
----
-
-## 🔀 Per-Request Context (Multi-Workspace Support)
-
-When multiple workspaces share a single MCP server process, the SDK supports **per-request context** via HTTP headers. This allows each request to have its own `projectRoot` and `workspaceId`.
-
-### How It Works
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Workspace A   │     │   MCP Gateway   │     │   MCP Server    │
-│  /projects/foo  │────▶│  (Proxy Layer)  │────▶│   (Shared)      │
-└─────────────────┘     │                 │     │                 │
-                        │  Adds headers:  │     │  Reads headers  │
-┌─────────────────┐     │  X-MCP-Project- │     │  via AsyncLocal │
-│   Workspace B   │────▶│    Root         │     │  Storage        │
-│  /projects/bar  │     │  X-MCP-Workspace│     │                 │
-└─────────────────┘     │    -Id          │     │                 │
-                        └─────────────────┘     └─────────────────┘
-```
-
-### HTTP Headers
-
-The SDK recognizes these headers for per-request context:
-
-| Header | Description | Priority |
-|--------|-------------|----------|
-| `X-MCP-Project-Root` | Workspace project root path | Overrides `MCP_PROJECT_ROOT` env |
-| `X-MCP-Workspace-Id` | Workspace identifier (optional) | Informational |
-
-### Context Priority
-
-`projectRoot` is resolved with the following priority:
-
-1. **Per-request header** (`X-MCP-Project-Root`) - highest priority
-2. **Server-level environment** (`MCP_PROJECT_ROOT`)
-3. **undefined** if neither is set
-
-### Usage in Handlers
-
-```typescript
-server.addTool({
-  name: 'list-files',
-  schema: Type.Object({}),
-  handler: async (params, context) => {
-    // projectRoot automatically reflects per-request header
-    // or falls back to server-level MCP_PROJECT_ROOT
-    const root = context.projectRoot;
-
-    // workspaceId is available for logging/caching (optional)
-    const wsId = context.workspaceId;
-
-    if (!root) {
-      return { content: [{ type: 'text', text: 'No project root configured' }] };
-    }
-
-    // Files are resolved relative to the correct workspace
-    const files = await fs.readdir(root);
-    return {
-      content: [{ type: 'text', text: files.join('\n') }]
-    };
-  }
-});
-```
-
-### Implementation Details
-
-The SDK uses Node.js `AsyncLocalStorage` to propagate request context through the async call stack. This allows handlers to access per-request headers even though the official MCP SDK doesn't support custom context in handlers.
-
-```typescript
-// Available exports for advanced usage
-import {
-  getRequestContext,      // Get current request context
-  extractRequestContext,  // Extract context from HTTP request
-  requestContextStorage   // AsyncLocalStorage instance
-} from '@tscodex/mcp-sdk';
-
-// In custom middleware or transport
-const reqContext = extractRequestContext(httpRequest);
-// reqContext = { projectRoot?: string, workspaceId?: string }
-```
-
-### Backward Compatibility
-
-- Servers that don't receive these headers continue to work normally
-- `projectRoot` falls back to `MCP_PROJECT_ROOT` environment variable
-- `workspaceId` is `undefined` when not provided
-- Existing plugins don't need any changes
-
----
-
-## 🏷️ Custom Context Headers
-
-SDK allows servers to declare custom context headers that are passed with each request. This enables workspace-specific data (like project IDs, API keys, etc.) to be sent dynamically without modifying the server configuration.
-
-### Declaring Context Headers
-
-```typescript
-const server = new McpServer({
-  name: 'my-server',
-  version: '1.0.0',
-  description: 'Server with custom context headers',
-  // Declare which headers this server accepts
-  contextHeaders: ['project-id', 'api-key', 'region']
-});
-```
-
-### How It Works
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   MCP Manager   │     │   MCP Gateway   │     │   MCP Server    │
-│  UI shows form  │     │                 │     │                 │
-│  for headers:   │────▶│  Adds headers:  │────▶│  Receives in    │
-│  [project-id]   │     │  X-MCP-CTX-     │     │  context.       │
-│  [api-key]      │     │    project-id   │     │  contextHeaders │
-│  [region]       │     │  X-MCP-CTX-     │     │                 │
-│                 │     │    api-key      │     │                 │
-│                 │     │  X-MCP-CTX-     │     │                 │
-│                 │     │    region       │     │                 │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-```
-
-### Using in Handlers
-
-```typescript
-server.addTool({
-  name: 'get-project-data',
-  description: 'Fetch data for specific project',
-  schema: Type.Object({}),
-  handler: async (params, context) => {
-    // Access context headers from the request
-    const projectId = context.contextHeaders?.['project-id'];
-    const apiKey = context.contextHeaders?.['api-key'];
-    const region = context.contextHeaders?.['region'] || 'us-east-1';
-
-    if (!projectId) {
-      return {
-        content: [{
-          type: 'text',
-          text: 'Error: project-id header is required. Configure it in workspace settings.'
-        }]
-      };
-    }
-
-    // Use the values for your business logic
-    const data = await fetchProjectData(projectId, apiKey, region);
-
-    return {
-      content: [{ type: 'text', text: JSON.stringify(data) }]
-    };
-  }
-});
-```
-
-### HTTP Headers Format
-
-Context headers are passed with the `X-MCP-CTX-` prefix:
-
-| Declared Header | HTTP Header | `context.contextHeaders` Key |
-|-----------------|-------------|------------------------------|
-| `project-id` | `X-MCP-CTX-project-id` | `project-id` |
-| `api-key` | `X-MCP-CTX-api-key` | `api-key` |
-| `Region` | `X-MCP-CTX-Region` | `region` (lowercase) |
-
-### Metadata Exposure
-
-Declared context headers are included in server metadata (`getMetadata()`), allowing MCP Manager to automatically show configuration UI for each workspace:
-
-```typescript
-const metadata = server.getMetadata();
-// metadata.contextHeaders = ['project-id', 'api-key', 'region']
-```
-
-### Use Cases
-
-- **Multi-tenant applications**: Pass tenant ID per workspace
-- **External service integration**: Pass project/account IDs to map workspaces to external services
-- **Region selection**: Allow different regions per workspace
-- **API key override**: Different API keys for different workspaces
-
----
-
-## 🔧 Utilities
-
-### Security Utilities
-
-```typescript
-import { safePath, isPathSafe, sanitizeFilename, RateLimiter } from '@tscodex/mcp-sdk';
-
-// Safe path resolution
-const safe = safePath('/workspace', userPath); // Prevents path traversal
-
-// Path validation
-if (isPathSafe(userPath)) {
-  // Safe to use
-}
-
-// Filename sanitization
-const safe = sanitizeFilename(userFilename);
-
-// Rate limiter
-const limiter = new RateLimiter({
-  maxRequests: 100,
-  windowMs: 60000
-});
-```
-
-### Configuration Utilities
-
-```typescript
-import { validateConfig, updateConfig } from '@tscodex/mcp-sdk';
-
-// Validate configuration against schema
-const config = validateConfig<Config>(data, schema);
-
-// Deep merge configurations
-const merged = updateConfig(defaultConfig, extensionConfig);
-```
-
----
-
-## 📚 Documentation
-
-- **[Configuration Loading Architecture](./CONFIG_LOADING.md)** - Detailed description of configuration loading and merging from various sources (CLI, ENV, files, Extension)
 
 ---
 
@@ -949,6 +845,7 @@ tsx examples/with-auth.ts
 │   ├── transport.ts        # HTTP transport
 │   ├── security.ts         # Security utilities
 │   ├── extension.ts        # Extension types
+│   ├── ai-client.ts        # AI Client
 │   └── index.ts           # Main exports
 ├── examples/              # Example servers
 └── dist/                 # Compiled output
@@ -956,15 +853,46 @@ tsx examples/with-auth.ts
 
 ---
 
-## 🔐 Security Best Practices
+## 🍎 Platform Notes
 
-1. **Always validate user input** using TypeBox schemas
-2. **Use `safePath()`** for file operations to prevent path traversal
-3. **Enable rate limiting** for production servers
-4. **Sanitize filenames** using `sanitizeFilename()`
-5. **Validate request sizes** to prevent DoS attacks
-6. **Use HTTPS** in production (configured at transport level)
-7. **Implement proper authentication** for sensitive operations
+### Windows
+
+- ✅ Full support
+- ✅ Uses Windows Credential Store for secrets
+- ✅ No additional setup required
+
+### macOS
+
+- ⚠️ **Code signing required** for distribution
+- ✅ Uses Keychain for secrets
+- 📝 Developers can generate signature themselves as all necessary resources are available
+- 📧 If someone wants to help with signing or collaborate — please contact me
+
+### Linux
+
+- ✅ Full support
+- ✅ Requires `libsecret-1-dev` and GNOME Keyring or KDE Wallet
+- 📦 Install: `sudo apt install libsecret-1-dev gnome-keyring`
+
+---
+
+## 🔗 Links
+
+### Main Projects
+
+- **[MCP Manager](https://github.com/unbywyd/tscodex-mcp-manager-app)** — Desktop application for managing MCP servers
+- **[Cursor Bridge](https://github.com/unbywyd/tscodex-msp-manager-bridge)** — Extension for Cursor/VS Code
+- **[npm Package](https://www.npmjs.com/package/@tscodex/mcp-sdk)** — SDK package on npm
+
+### Example Servers
+
+- **[@tscodex/mcp-images](https://github.com/unbywyd/tscodex-mcp-images)** — Image processing, stock search, AI generation
+- **[@tscodex/mcp-server-example](https://www.npmjs.com/package/@tscodex/mcp-server-example)** — SDK examples and best practices
+
+### Documentation
+
+- **[Website](https://tscodex.com)** — Official website
+- **[MCP Protocol Specification](https://modelcontextprotocol.io)** — MCP protocol specification
 
 ---
 
@@ -974,19 +902,11 @@ MIT © [unbywyd](https://github.com/unbywyd)
 
 ---
 
-## 🔗 Links
+## 🤝 Collaboration
 
-- [GitHub Repository](https://github.com/unbywyd/tscodex)
-- [npm Package](https://www.npmjs.com/package/@tscodex/mcp-sdk)
-- [MCP Protocol Specification](https://modelcontextprotocol.io)
+If you want to help with the project, especially with code signing for macOS or other aspects, please contact me!
 
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-**Version**: 0.2.0  
+**Version**: 0.0.6  
 **Status**: Production Ready

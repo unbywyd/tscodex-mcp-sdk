@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mcp-images": {
+      "url": "http://127.0.0.1:4040/mcp/bc15e57a-3da8-4964-a0a4-a24240d0670a/8b9009af-93b4-46a6-be58-2fa553eaab6e",
+      "id": "bc15e57a-3da8-4964-a0a4-a24240d0670a"
+    },
+    "mcp-server-example": {
+      "url": "http://127.0.0.1:4040/mcp/af4b5c1e-6f31-4524-ab8d-4faa82b92c7e/8b9009af-93b4-46a6-be58-2fa553eaab6e",
+      "id": "af4b5c1e-6f31-4524-ab8d-4faa82b92c7e"
+    }
+  }
+}
